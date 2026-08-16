@@ -1,0 +1,11 @@
+{
+  "build": {
+    "env": {
+      "DATABASE_URL": "mongodb+srv://henryosuagwu22_db_user:AbCPDB1ld5M0lyqI@cluster0.bhc2p0i.mongodb.net/pulseai?retryWrites=true&w=majority",
+      "MONGODB_DB": "pulseai",
+      "NEXTAUTH_URL": "https://pulse-ai-two-rust.vercel.app",
+      "NEXTAUTH_SECRET": "IHl1vBBjzv58ZjQzuEtiyUOxJ5ZMIiqhnDaGWnyyqOk=",
+      "GROQ_API_KEY": "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"
+    }
+  }
+}
