@@ -19,6 +19,13 @@ export async function GET(request: NextRequest) {
 
     const { db } = await connectToDatabase()
     
+    if (!db) {
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 503 }
+      )
+    }
+    
     const conversations = await db.collection('conversations')
       .find({ userId: new ObjectId(session.user.id) })
       .sort({ updatedAt: -1 })
@@ -49,6 +56,13 @@ export async function POST(request: NextRequest) {
     const { title } = body
 
     const { db } = await connectToDatabase()
+    
+    if (!db) {
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 503 }
+      )
+    }
 
     const result = await db.collection('conversations').insertOne({
       userId: new ObjectId(session.user.id),

@@ -1,37 +1,11 @@
+// src/app/api/user/settings/route.ts
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// src/app/api/user/settings/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { connectToDatabase } from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
-
-interface SettingsResponse {
-  id: string
-  userId: string
-  theme: string
-  fontSize: string
-  language: string
-  notifications: boolean
-  soundEffects: boolean
-  createdAt: Date
-  updatedAt: Date
-}
-
-function formatSettings(settings: any): SettingsResponse {
-  return {
-    id: settings._id.toString(),
-    userId: settings.userId.toString(),
-    theme: settings.theme,
-    fontSize: settings.fontSize,
-    language: settings.language,
-    notifications: settings.notifications,
-    soundEffects: settings.soundEffects,
-    createdAt: settings.createdAt,
-    updatedAt: settings.updatedAt,
-  }
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,11 +20,17 @@ export async function GET(request: NextRequest) {
 
     const { db } = await connectToDatabase()
     
+    if (!db) {
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 503 }
+      )
+    }
+    
     let settings = await db.collection('settings').findOne({ 
       userId: new ObjectId(session.user.id) 
     })
 
-    // If no settings exist, create default ones
     if (!settings) {
       const result = await db.collection('settings').insertOne({
         userId: new ObjectId(session.user.id),
@@ -66,15 +46,25 @@ export async function GET(request: NextRequest) {
       settings = await db.collection('settings').findOne({ _id: result.insertedId })
     }
 
-    // settings should exist here, but TypeScript doesn't know that
+    // Return with proper null check
     if (!settings) {
       return NextResponse.json(
-        { error: 'Failed to create settings' },
+        { error: 'Failed to create or fetch settings' },
         { status: 500 }
       )
     }
 
-    return NextResponse.json(formatSettings(settings))
+    return NextResponse.json({
+      id: settings._id.toString(),
+      userId: settings.userId.toString(),
+      theme: settings.theme,
+      fontSize: settings.fontSize,
+      language: settings.language,
+      notifications: settings.notifications,
+      soundEffects: settings.soundEffects,
+      createdAt: settings.createdAt,
+      updatedAt: settings.updatedAt,
+    })
   } catch (error) {
     console.error('Get settings error:', error)
     return NextResponse.json(
@@ -99,38 +89,33 @@ export async function PATCH(request: NextRequest) {
     const { theme, fontSize, language, notifications, soundEffects } = body
 
     const { db } = await connectToDatabase()
-
-    // Build update object
-    const updateData: {
-      theme?: string
-      fontSize?: string
-      language?: string
-      notifications?: boolean
-      soundEffects?: boolean
-      updatedAt: Date
-    } = { updatedAt: new Date() }
     
+    if (!db) {
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 503 }
+      )
+    }
+
+    const updateData: any = { updatedAt: new Date() }
     if (theme !== undefined) updateData.theme = theme
     if (fontSize !== undefined) updateData.fontSize = fontSize
     if (language !== undefined) updateData.language = language
     if (notifications !== undefined) updateData.notifications = notifications
     if (soundEffects !== undefined) updateData.soundEffects = soundEffects
 
-    // Update settings with upsert
     await db.collection('settings').updateOne(
       { userId: new ObjectId(session.user.id) },
       { $set: updateData },
       { upsert: true }
     )
 
-    // Get updated settings
     let settings = await db.collection('settings').findOne({ 
       userId: new ObjectId(session.user.id) 
     })
 
-    // If settings still don't exist (shouldn't happen with upsert), create them
     if (!settings) {
-      const insertResult = await db.collection('settings').insertOne({
+      const result = await db.collection('settings').insertOne({
         userId: new ObjectId(session.user.id),
         theme: 'dark',
         fontSize: 'medium',
@@ -140,18 +125,28 @@ export async function PATCH(request: NextRequest) {
         createdAt: new Date(),
         updatedAt: new Date(),
       })
-      settings = await db.collection('settings').findOne({ _id: insertResult.insertedId })
+      settings = await db.collection('settings').findOne({ _id: result.insertedId })
     }
 
-    // settings should exist here
+    // Return with proper null check
     if (!settings) {
       return NextResponse.json(
-        { error: 'Failed to update settings' },
+        { error: 'Failed to create or fetch settings' },
         { status: 500 }
       )
     }
 
-    return NextResponse.json(formatSettings(settings))
+    return NextResponse.json({
+      id: settings._id.toString(),
+      userId: settings.userId.toString(),
+      theme: settings.theme,
+      fontSize: settings.fontSize,
+      language: settings.language,
+      notifications: settings.notifications,
+      soundEffects: settings.soundEffects,
+      createdAt: settings.createdAt,
+      updatedAt: settings.updatedAt,
+    })
   } catch (error) {
     console.error('Update settings error:', error)
     return NextResponse.json(

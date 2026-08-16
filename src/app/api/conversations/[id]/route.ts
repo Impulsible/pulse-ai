@@ -6,7 +6,6 @@ import { authOptions } from '@/lib/auth'
 import { connectToDatabase } from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
-// Fix: Use Promise for params in Next.js 16
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -23,6 +22,13 @@ export async function GET(
 
     const { id } = await params
     const { db } = await connectToDatabase()
+    
+    if (!db) {
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 503 }
+      )
+    }
     
     const conversation = await db.collection('conversations').findOne({
       _id: new ObjectId(id),
@@ -70,6 +76,13 @@ export async function DELETE(
 
     const { id } = await params
     const { db } = await connectToDatabase()
+    
+    if (!db) {
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 503 }
+      )
+    }
 
     await db.collection('conversations').deleteOne({
       _id: new ObjectId(id),
@@ -105,6 +118,13 @@ export async function PATCH(
     const { title, isPinned } = body
 
     const { db } = await connectToDatabase()
+    
+    if (!db) {
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 503 }
+      )
+    }
 
     const updateData: any = { updatedAt: new Date() }
     if (title !== undefined) updateData.title = title
