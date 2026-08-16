@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "type-check": "tsc --noEmit",
     "db:test": "npx tsx src/lib/test-connection.ts",
     "db:init": "npx tsx src/lib/init-database.ts",
     "db:seed": "npm run db:init"
@@ -18,7 +19,6 @@
     "framer-motion": "^13.1.0",
     "lucide-react": "^1.31.0",
     "mongodb": "^7.5.0",
-    "mongoose": "^9.9.2",
     "next": "16.3.1",
     "next-auth": "^4.24.15",
     "openai": "^7.4.0",
@@ -32,7 +32,6 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/mongodb": "^4.0.6",
-    "@types/mongoose": "^5.11.96",
     "@types/node": "^20.19.43",
     "@types/react": "^19",
     "@types/react-dom": "^19",
