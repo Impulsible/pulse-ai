@@ -1,12 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-
 // src/app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 
 // Get API key from environment
 const GROQ_API_KEY = process.env.GROQ_API_KEY
-// Updated to a working model
-const GROQ_MODEL = process.env.GROQ_MODEL || 'groq/compound'
+const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b'
 
 export async function POST(request: NextRequest) {
   console.log('=== CHAT API CALLED (Groq) ===')
@@ -31,21 +29,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build messages array
+    // Build messages array with full conversation history
     const chatMessages = [
       {
-        role: 'system',
+        role: 'system' as const,
         content: `You are Pulse, an intelligent AI assistant with your own identity. 
 You are helpful, thoughtful, and conversational. You have access to real-time information 
 and can help with a wide range of tasks including coding, writing, analysis, and general questions.
 You remember context from the conversation and adapt your responses accordingly.
-Be concise but thorough. Use markdown for formatting when appropriate.`,
+Be concise but thorough. Use markdown for formatting when appropriate.
+Maintain conversation flow and remember what was discussed earlier.`,
       },
+      // Include full conversation history
       ...messages,
     ]
 
-    if (message) {
-      chatMessages.push({ role: 'user', content: message })
+    // Add the current message if not already in history
+    if (message && !messages.some((m: { role: string; content: string }) => m.role === 'user' && m.content === message)) {
+      chatMessages.push({ role: 'user' as const, content: message })
     }
 
     console.log(`📤 Sending ${chatMessages.length} messages to Groq`)
@@ -68,8 +69,8 @@ Be concise but thorough. Use markdown for formatting when appropriate.`,
           model: GROQ_MODEL,
           messages: chatMessages,
           stream: true,
-          max_tokens: 4096,
-          temperature: 0.7,
+          max_tokens: parseInt(process.env.GROQ_MAX_TOKENS || '4096'),
+          temperature: parseFloat(process.env.GROQ_TEMPERATURE || '0.7'),
         }),
       })
 
@@ -117,8 +118,8 @@ Be concise but thorough. Use markdown for formatting when appropriate.`,
         body: JSON.stringify({
           model: GROQ_MODEL,
           messages: chatMessages,
-          max_tokens: 4096,
-          temperature: 0.7,
+          max_tokens: parseInt(process.env.GROQ_MAX_TOKENS || '4096'),
+          temperature: parseFloat(process.env.GROQ_TEMPERATURE || '0.7'),
         }),
       })
 
@@ -188,7 +189,6 @@ Be concise but thorough. Use markdown for formatting when appropriate.`,
   }
 }
 
-// ✅ ADD THIS GET HANDLER
 export async function GET(request: NextRequest) {
   console.log('✅ GET request received to /api/chat')
   
@@ -198,8 +198,6 @@ export async function GET(request: NextRequest) {
     model: GROQ_MODEL,
     hasApiKey: !!GROQ_API_KEY,
     timestamp: new Date().toISOString(),
-    // Test message to verify API key
-    testMessage: GROQ_API_KEY ? 'API key is configured' : 'API key is missing - please add GROQ_API_KEY to .env.local'
   })
 }
 

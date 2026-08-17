@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/Chat/ChatLayout.tsx
@@ -6,7 +7,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
-import Sidebar from '@/components/Sidebar/Sidebar'
+import { Sidebar } from '@/components/Sidebar/Sidebar'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { MessageInput } from './MessageInput'
@@ -246,7 +247,7 @@ export function ChatLayout({ className, initialTitle = 'New Chat' }: ChatLayoutP
   })
   const [assistantState, setAssistantState] = useState<AssistantState>('idle')
   const [conversationTitle, setConversationTitle] = useState(initialTitle)
-  const { streamMessage, isStreaming, streamedContent } = useAIStream()
+  const { streamMessage, isStreaming, streamedContent, clearHistory, reset } = useAIStream()
   const { addToast } = useToast()
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -392,7 +393,9 @@ export function ChatLayout({ className, initialTitle = 'New Chat' }: ChatLayoutP
     // Load messages for this conversation
     const savedMessages = loadFromStorage<Message[]>(`${STORAGE_KEYS.MESSAGES}${id}`, [])
     setMessages(savedMessages)
-  }, [conversations])
+    // Reset the conversation history in the AI stream
+    clearHistory()
+  }, [conversations, clearHistory])
 
   // Send message
   const handleSendMessage = useCallback(
@@ -534,6 +537,7 @@ export function ChatLayout({ className, initialTitle = 'New Chat' }: ChatLayoutP
     setMessages([])
     setConversationTitle('New Chat')
     setAssistantState('idle')
+    clearHistory() // Clear conversation history
     
     if (window.innerWidth < 1024) {
       setIsSidebarOpen(false)
@@ -543,7 +547,7 @@ export function ChatLayout({ className, initialTitle = 'New Chat' }: ChatLayoutP
       title: 'New chat created',
       type: 'success',
     })
-  }, [addToast])
+  }, [addToast, clearHistory])
 
   // Handle clear messages
   const handleClear = useCallback(() => {
@@ -553,11 +557,12 @@ export function ChatLayout({ className, initialTitle = 'New Chat' }: ChatLayoutP
     setAssistantState('idle')
     setConversationTitle('New Chat')
     streamingMessageIdRef.current = null
+    clearHistory() // Clear conversation history
     addToast({
       title: 'Messages cleared',
       type: 'success',
     })
-  }, [addToast])
+  }, [addToast, clearHistory])
 
   // Handle delete conversation
   const handleDeleteConversation = useCallback((id: string) => {
@@ -570,12 +575,13 @@ export function ChatLayout({ className, initialTitle = 'New Chat' }: ChatLayoutP
       setActiveConversationId(undefined)
       setMessages([])
       setConversationTitle('New Chat')
+      clearHistory() // Clear conversation history
     }
     addToast({
       title: 'Conversation deleted',
       type: 'success',
     })
-  }, [activeConversationId, addToast])
+  }, [activeConversationId, addToast, clearHistory])
 
   const handleToggleSidebar = useCallback(
     () => setIsSidebarOpen((v) => !v),

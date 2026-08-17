@@ -10,10 +10,17 @@ interface StreamOptions {
   onError?: (error: Error) => void
 }
 
+interface Message {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
+
 export function useAIStream() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamedContent, setStreamedContent] = useState('')
   const [error, setError] = useState<Error | null>(null)
+  // Store conversation history
+  const [conversationHistory, setConversationHistory] = useState<Message[]>([])
 
   const streamMessage = useCallback(async (
     message: string,
@@ -24,7 +31,11 @@ export function useAIStream() {
     setError(null)
 
     try {
-      console.log('📤 Sending message to API:', message)
+      // Add user message to history
+      const userMessage: Message = { role: 'user', content: message }
+      const updatedHistory = [...conversationHistory, userMessage]
+      
+      console.log('📤 Sending message with history:', updatedHistory.length, 'messages')
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -34,9 +45,7 @@ export function useAIStream() {
         body: JSON.stringify({
           message,
           stream: true,
-          messages: [
-            { role: 'user', content: message }
-          ],
+          messages: updatedHistory, // Send full history
         }),
       })
 
@@ -49,7 +58,6 @@ export function useAIStream() {
           errorMessage = errorData.error || errorMessage
           console.error('❌ API error response:', errorData)
         } catch (e) {
-          // If we can't parse JSON, try text
           try {
             const text = await response.text()
             console.error('❌ API error text:', text)
@@ -76,6 +84,11 @@ export function useAIStream() {
         const { done, value } = await reader.read()
         
         if (done) {
+          // Add assistant response to history
+          if (fullContent) {
+            const assistantMessage: Message = { role: 'assistant', content: fullContent }
+            setConversationHistory([...updatedHistory, assistantMessage])
+          }
           console.log('✅ Stream complete, full content length:', fullContent.length)
           options.onComplete?.(fullContent)
           break
@@ -94,6 +107,10 @@ export function useAIStream() {
             
             if (data === '[DONE]') {
               console.log('✅ Stream done signal received')
+              if (fullContent) {
+                const assistantMessage: Message = { role: 'assistant', content: fullContent }
+                setConversationHistory([...updatedHistory, assistantMessage])
+              }
               options.onComplete?.(fullContent)
               setIsStreaming(false)
               return
@@ -103,13 +120,11 @@ export function useAIStream() {
               try {
                 const parsed = JSON.parse(data)
                 
-                // Check for error in the response
                 if (parsed.error) {
                   console.error('❌ Stream error:', parsed.error)
                   throw new Error(parsed.error)
                 }
                 
-                // Get the token from the custom format
                 const token = parsed.token || parsed.choices?.[0]?.delta?.content || ''
                 
                 if (token) {
@@ -118,7 +133,6 @@ export function useAIStream() {
                   options.onToken?.(token)
                 }
               } catch (e) {
-                // If it's an error we threw, rethrow it
                 if (e instanceof Error && e.message) {
                   throw e
                 }
@@ -147,6 +161,16 @@ export function useAIStream() {
         }
       }
 
+      // Add assistant response to history if not already added
+      if (fullContent) {
+        // Check if already added to avoid duplicates
+        const lastMessage = conversationHistory[conversationHistory.length - 1]
+        if (!lastMessage || lastMessage.role !== 'assistant' || lastMessage.content !== fullContent) {
+          const assistantMessage: Message = { role: 'assistant', content: fullContent }
+          setConversationHistory([...updatedHistory, assistantMessage])
+        }
+      }
+
       options.onComplete?.(fullContent)
     } catch (error) {
       console.error('❌ Streaming error:', error)
@@ -156,13 +180,22 @@ export function useAIStream() {
     } finally {
       setIsStreaming(false)
     }
-  }, [])
+  }, [conversationHistory])
 
   const reset = useCallback(() => {
+    setConversationHistory([])
     setStreamedContent('')
     setError(null)
     setIsStreaming(false)
   }, [])
+
+  const clearHistory = useCallback(() => {
+    setConversationHistory([])
+  }, [])
+
+  const getHistory = useCallback(() => {
+    return conversationHistory
+  }, [conversationHistory])
 
   return {
     isStreaming,
@@ -170,5 +203,8 @@ export function useAIStream() {
     error,
     streamMessage,
     reset,
+    clearHistory,
+    getHistory,
+    conversationHistory,
   }
 }
