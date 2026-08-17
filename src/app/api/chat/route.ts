@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 // Get API key from environment
 const GROQ_API_KEY = process.env.GROQ_API_KEY
 // Updated to a working model
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-70b-versatile'
+const GROQ_MODEL = process.env.GROQ_MODEL || 'groq/compound'
 
 export async function POST(request: NextRequest) {
   console.log('=== CHAT API CALLED (Groq) ===')
@@ -186,6 +186,21 @@ Be concise but thorough. Use markdown for formatting when appropriate.`,
       { status: 500 }
     )
   }
+}
+
+// ✅ ADD THIS GET HANDLER
+export async function GET(request: NextRequest) {
+  console.log('✅ GET request received to /api/chat')
+  
+  return NextResponse.json({
+    status: 'ok',
+    message: 'Chat API is running',
+    model: GROQ_MODEL,
+    hasApiKey: !!GROQ_API_KEY,
+    timestamp: new Date().toISOString(),
+    // Test message to verify API key
+    testMessage: GROQ_API_KEY ? 'API key is configured' : 'API key is missing - please add GROQ_API_KEY to .env.local'
+  })
 }
 
 export async function DELETE(request: NextRequest) {

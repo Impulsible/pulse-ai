@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 // src/components/Sidebar/Sidebar.tsx
 'use client'
 
@@ -60,7 +61,7 @@ function LogoMark() {
   )
 }
 
-// Conversation count badge
+// Conversation count badge - FIXED hydration issues
 function ConversationCount({
   total,
   filtered,
@@ -70,24 +71,23 @@ function ConversationCount({
   filtered: number
   isFiltered: boolean
 }) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   if (total === 0) return null
+
+  const countText = isFiltered
+    ? `${filtered} of ${total} chats`
+    : `${total} conversation${total !== 1 ? 's' : ''}`
 
   return (
     <div className="flex items-center justify-between px-4 pb-1">
-      <AnimatePresence mode="wait">
-        <motion.span
-          key={isFiltered ? `f-${filtered}` : `t-${total}`}
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 4 }}
-          transition={{ duration: 0.18 }}
-          className="text-[9px] font-mono text-white/15"
-        >
-          {isFiltered
-            ? `${filtered} of ${total} chats`
-            : `${total} conversation${total !== 1 ? 's' : ''}`}
-        </motion.span>
-      </AnimatePresence>
+      <span className="text-[9px] font-mono text-white/15">
+        {mounted ? countText : ''}
+      </span>
     </div>
   )
 }
@@ -153,6 +153,12 @@ export function Sidebar({
   const [searchQuery, setSearchQuery] = useState('')
   const [internalConversations, setInternalConversations] = useState<Conversation[]>([])
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_WIDTH)
+  const [mounted, setMounted] = useState(false)
+
+  // Mount effect to prevent hydration mismatches
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Use external conversations if provided, otherwise use internal
   const conversations = externalConversations || internalConversations
@@ -218,11 +224,9 @@ export function Sidebar({
   }, [conversations, onConversationsUpdate])
 
   const handleDelete = useCallback((id: string) => {
-    // Call the parent delete handler if provided
     if (onDeleteConversation) {
       onDeleteConversation(id)
     } else {
-      // Otherwise just remove from local state
       const updateFn = (prev: Conversation[]) => prev.filter((c) => c.id !== id)
       if (onConversationsUpdate) {
         onConversationsUpdate(updateFn(conversations))
@@ -255,6 +259,11 @@ export function Sidebar({
   }, [conversations, searchQuery])
 
   const isFiltered = searchQuery.trim().length > 0
+
+  // Don't render on server to prevent hydration mismatches
+  if (!mounted) {
+    return null
+  }
 
   return (
     <>
@@ -330,11 +339,13 @@ export function Sidebar({
           />
 
           {/* Conversation list */}
-          <div className="
-            flex-1 min-h-0 overflow-y-auto
-            [scrollbar-width:thin]
-            [scrollbar-color:rgba(255,255,255,0.04)_transparent]
-          ">
+          <div 
+            className="
+              flex-1 min-h-0 overflow-y-auto
+              [scrollbar-width:thin]
+              [scrollbar-color:rgba(255,255,255,0.04)_transparent]
+            "
+          >
             <ConversationList
               conversations={conversations}
               activeId={activeConversationId}
@@ -358,3 +369,7 @@ export function Sidebar({
 
 // Export types
 export type { SidebarProps }
+
+// ADD DEFAULT EXPORT - THIS IS THE CRITICAL FIX
+const SidebarComponent = Sidebar
+export default SidebarComponent

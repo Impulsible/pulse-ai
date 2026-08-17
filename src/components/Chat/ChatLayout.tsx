@@ -6,7 +6,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
-import { Sidebar } from '@/components/Sidebar/Sidebar'
+import Sidebar from '@/components/Sidebar/Sidebar'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { MessageInput } from './MessageInput'
@@ -175,8 +175,14 @@ function EmptyState({ onSuggestion }: { onSuggestion: (text: string) => void }) 
   )
 }
 
-// Token budget indicator
+// Token budget indicator - FIXED hydration
 function TokenBudget({ used, limit = 128_000 }: { used: number; limit?: number }) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   const pct = Math.min((used / limit) * 100, 100)
   const color =
     pct > 85 ? 'bg-red-500'
@@ -184,6 +190,23 @@ function TokenBudget({ used, limit = 128_000 }: { used: number; limit?: number }
     : 'bg-indigo-500'
 
   if (used === 0) return null
+
+  // During SSR, render a static version without animations
+  if (!mounted) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-1.5 border-b border-white/[0.04] bg-white/[0.005]">
+        <div className="flex-1 h-px bg-white/[0.06] rounded-full overflow-hidden">
+          <div 
+            className={`h-full rounded-full ${color}`} 
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <span className="text-[9px] font-mono text-white/20 flex-shrink-0 tabular-nums">
+          {used.toLocaleString()} / {(limit / 1000).toFixed(0)}k ctx
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className="flex items-center gap-2 px-4 py-1.5 border-b border-white/[0.04] bg-white/[0.005]">
@@ -204,6 +227,8 @@ function TokenBudget({ used, limit = 128_000 }: { used: number; limit?: number }
 
 // Main Layout
 export function ChatLayout({ className, initialTitle = 'New Chat' }: ChatLayoutProps) {
+  const [mounted, setMounted] = useState(false)
+  
   // Load from localStorage on mount
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [conversations, setConversations] = useState<Conversation[]>(() => 
@@ -227,6 +252,11 @@ export function ChatLayout({ className, initialTitle = 'New Chat' }: ChatLayoutP
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const streamingMessageIdRef = useRef<string | null>(null)
   const currentConversationIdRef = useRef<string | null>(null)
+
+  // Set mounted state after hydration
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Save conversations to localStorage whenever they change
   useEffect(() => {
@@ -594,6 +624,22 @@ export function ChatLayout({ className, initialTitle = 'New Chat' }: ChatLayoutP
     })
   }, [addToast])
 
+  // Don't render on server to prevent hydration mismatches
+  if (!mounted) {
+    return (
+      <div
+        className={cn(
+          'flex h-screen overflow-hidden',
+          'bg-[#050508]',
+          className
+        )}
+      >
+        {/* Static placeholder for SSR */}
+        <div className="flex-1" />
+      </div>
+    )
+  }
+
   return (
     <div
       className={cn(
@@ -680,3 +726,5 @@ export function ChatLayout({ className, initialTitle = 'New Chat' }: ChatLayoutP
     </div>
   )
 }
+
+export default ChatLayout

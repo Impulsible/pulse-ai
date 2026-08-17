@@ -34,6 +34,9 @@ export function useAIStream() {
         body: JSON.stringify({
           message,
           stream: true,
+          messages: [
+            { role: 'user', content: message }
+          ],
         }),
       })
 
@@ -99,13 +102,26 @@ export function useAIStream() {
             if (data) {
               try {
                 const parsed = JSON.parse(data)
-                const token = parsed.choices?.[0]?.delta?.content || ''
+                
+                // Check for error in the response
+                if (parsed.error) {
+                  console.error('❌ Stream error:', parsed.error)
+                  throw new Error(parsed.error)
+                }
+                
+                // Get the token from the custom format
+                const token = parsed.token || parsed.choices?.[0]?.delta?.content || ''
+                
                 if (token) {
                   fullContent += token
                   setStreamedContent(fullContent)
                   options.onToken?.(token)
                 }
               } catch (e) {
+                // If it's an error we threw, rethrow it
+                if (e instanceof Error && e.message) {
+                  throw e
+                }
                 console.warn('⚠️ Failed to parse SSE data:', data, e)
               }
             }
@@ -119,7 +135,7 @@ export function useAIStream() {
         if (data && data !== '[DONE]') {
           try {
             const parsed = JSON.parse(data)
-            const token = parsed.choices?.[0]?.delta?.content || ''
+            const token = parsed.token || parsed.choices?.[0]?.delta?.content || ''
             if (token) {
               fullContent += token
               setStreamedContent(fullContent)
