@@ -5,7 +5,9 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 
-// Types
+/* ─────────────────────────────────────────────────────────────────────────────
+   TYPES
+   ───────────────────────────────────────────────────────────────────────────── */
 export interface Conversation {
   id: string
   title: string
@@ -27,28 +29,52 @@ interface ConversationItemProps {
   index?: number
 }
 
-// Icons
+/* ─────────────────────────────────────────────────────────────────────────────
+   MODEL LABEL NORMALIZER
+   ───────────────────────────────────────────────────────────────────────────── */
+function friendlyModelName(model?: string): string {
+  if (!model) return 'Pulse AI'
+  const lower = model.toLowerCase().trim()
+
+  const legacyPatterns = [
+    'groq',
+    'openai',
+    'gpt',
+    'llama',
+    'mixtral',
+    'gemma',
+    'claude',
+    'instant',
+    'oss',
+  ]
+
+  if (legacyPatterns.some((p) => lower.includes(p))) {
+    return 'Pulse AI'
+  }
+  return model
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ICONS
+   ───────────────────────────────────────────────────────────────────────────── */
 function PinIcon({ filled }: { filled: boolean }) {
   return (
-    <svg
-      width="12" height="12" viewBox="0 0 24 24"
+    <svg width="12" height="12" viewBox="0 0 24 24"
       fill={filled ? 'currentColor' : 'none'}
-      stroke="currentColor" strokeWidth="1.8"
-      strokeLinecap="round" strokeLinejoin="round"
-    >
-      <path d="M5 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-7-3.5L5 21V5z" />
+      stroke="currentColor" strokeWidth="1.7"
+      strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 17v5" />
+      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
     </svg>
   )
 }
 
 function TrashIcon() {
   return (
-    <svg
-      width="12" height="12" viewBox="0 0 24 24"
-      fill="none" stroke="currentColor" strokeWidth="1.8"
-      strokeLinecap="round" strokeLinejoin="round"
-    >
-      <polyline points="3 6 5 6 21 6" />
+    <svg width="12" height="12" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="1.7"
+      strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
       <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
       <path d="M10 11v6M14 11v6" />
       <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
@@ -58,34 +84,27 @@ function TrashIcon() {
 
 function PencilIcon() {
   return (
-    <svg
-      width="12" height="12" viewBox="0 0 24 24"
-      fill="none" stroke="currentColor" strokeWidth="1.8"
-      strokeLinecap="round" strokeLinejoin="round"
-    >
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    <svg width="12" height="12" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="1.7"
+      strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
     </svg>
   )
 }
 
-// Inline Tooltip
-function Tip({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+/* ─────────────────────────────────────────────────────────────────────────────
+   TOOLTIP
+   ───────────────────────────────────────────────────────────────────────────── */
+function Tip({ label, children }: { label: string; children: React.ReactNode }) {
   const [show, setShow] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const enter = () => { timer.current = setTimeout(() => setShow(true), 500) }
+  const enter = () => { timer.current = setTimeout(() => setShow(true), 450) }
   const leave = () => {
     if (timer.current) clearTimeout(timer.current)
     setShow(false)
   }
-
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
 
   return (
@@ -94,14 +113,16 @@ function Tip({
       <AnimatePresence>
         {show && (
           <motion.div
-            initial={{ opacity: 0, y: 4, scale: 0.92 }}
+            initial={{ opacity: 0, y: -4, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 2, scale: 0.94 }}
-            transition={{ duration: 0.12 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 pointer-events-none"
+            exit={{ opacity: 0, y: -2, scale: 0.92 }}
+            transition={{ duration: 0.14 }}
+            className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-[60] pointer-events-none"
           >
-            <div className="px-2 py-1 rounded-lg bg-[#111118] border border-white/[0.08] shadow-xl">
-              <p className="text-[10px] font-mono text-white/50 whitespace-nowrap">{label}</p>
+            <div className="px-2 py-1 rounded-md bg-[#0a0a12] border border-white/[0.08] shadow-2xl shadow-black/60">
+              <p className="text-[9.5px] font-mono text-white/60 whitespace-nowrap tracking-wide">
+                {label}
+              </p>
             </div>
           </motion.div>
         )}
@@ -110,13 +131,11 @@ function Tip({
   )
 }
 
-// Action button
+/* ─────────────────────────────────────────────────────────────────────────────
+   ACTION BUTTON
+   ───────────────────────────────────────────────────────────────────────────── */
 function ActionBtn({
-  onClick,
-  tooltip,
-  children,
-  destructive = false,
-  active = false,
+  onClick, tooltip, children, destructive = false, active = false,
 }: {
   onClick: (e: React.MouseEvent) => void
   tooltip: string
@@ -128,15 +147,15 @@ function ActionBtn({
     <Tip label={tooltip}>
       <motion.button
         onClick={onClick}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.92 }}
         className={cn(
-          'w-6 h-6 rounded-lg flex items-center justify-center transition-colors duration-150',
+          'w-7 h-7 rounded-lg flex items-center justify-center transition-colors duration-150',
           destructive
-            ? 'text-white/25 hover:text-red-400 hover:bg-red-500/[0.12]'
+            ? 'text-white/30 hover:text-red-400 hover:bg-red-500/[0.12]'
             : active
-            ? 'text-indigo-400 bg-indigo-500/10'
-            : 'text-white/25 hover:text-white/70 hover:bg-white/[0.06]'
+            ? 'text-indigo-300 bg-indigo-500/15'
+            : 'text-white/30 hover:text-white/80 hover:bg-white/[0.06]'
         )}
       >
         {children}
@@ -145,11 +164,11 @@ function ActionBtn({
   )
 }
 
-// Inline rename input
+/* ─────────────────────────────────────────────────────────────────────────────
+   INLINE RENAME
+   ───────────────────────────────────────────────────────────────────────────── */
 function RenameInput({
-  initial,
-  onCommit,
-  onCancel,
+  initial, onCommit, onCancel,
 }: {
   initial: string
   onCommit: (value: string) => void
@@ -168,60 +187,90 @@ function RenameInput({
     if (trimmed && trimmed !== initial) onCommit(trimmed)
     else onCancel()
   }
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter')  { e.preventDefault(); commit() }
     if (e.key === 'Escape') { e.preventDefault(); onCancel() }
   }
 
   return (
-    <input
-      ref={inputRef}
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onKeyDown={handleKeyDown}
-      onBlur={commit}
-      className="w-full text-xs font-semibold bg-transparent text-white/80 outline-none border-b border-indigo-500/40 pb-px caret-indigo-400"
-      maxLength={80}
-    />
+    <div className="relative w-full">
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={commit}
+        className="
+          w-full text-[13px] font-semibold bg-transparent
+          text-white/90 outline-none
+          border-b border-indigo-500/50 pb-0.5
+          caret-indigo-400
+          focus:border-indigo-400
+        "
+        maxLength={80}
+      />
+      <span className="absolute -bottom-4 left-0 text-[8px] font-mono text-white/25 tracking-wider">
+        ↵ save · esc cancel
+      </span>
+    </div>
   )
 }
 
-// Delete confirm - IMPROVED VERSION
+/* ─────────────────────────────────────────────────────────────────────────────
+   DELETE CONFIRMATION
+   ───────────────────────────────────────────────────────────────────────────── */
 function DeleteConfirm({
-  onConfirm,
-  onCancel,
+  onConfirm, onCancel,
 }: {
   onConfirm: () => void
   onCancel: () => void
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95, y: -8 }}
+      initial={{ opacity: 0, scale: 0.94, y: -6 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9, y: -4 }}
-      transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
-      className="absolute right-0 top-0 z-50"
+      exit={{ opacity: 0, scale: 0.92, y: -4 }}
+      transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+      className="absolute right-1 top-1 z-50"
       style={{ transformOrigin: 'top right' }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="mt-1 mr-1 rounded-xl bg-[#0e0e16]/95 border border-red-500/20 shadow-2xl shadow-black/60 p-3 backdrop-blur-xl min-w-[140px]">
-        <p className="text-[11px] font-mono text-white/50 mb-3 text-center">
-          Delete this chat?
-        </p>
-        <div className="flex gap-2">
+      <div className="
+        rounded-xl bg-[#0b0b14]/95 backdrop-blur-2xl
+        border border-red-500/25
+        shadow-[0_10px_40px_-8px_rgba(220,38,38,0.35),0_0_0_1px_rgba(220,38,38,0.05)]
+        p-2.5 min-w-[168px]
+      ">
+        <div className="flex items-center gap-1.5 mb-2.5 px-0.5">
+          <div className="w-5 h-5 rounded-md bg-red-500/15 border border-red-500/25 flex items-center justify-center">
+            <TrashIcon />
+          </div>
+          <p className="text-[10.5px] font-medium text-white/70">
+            Delete conversation?
+          </p>
+        </div>
+        <div className="flex gap-1.5">
           <button
             onClick={onCancel}
-            className="flex-1 text-[10px] font-mono py-1.5 px-2 rounded-lg bg-white/[0.04] border border-white/[0.07] text-white/40 hover:text-white/70 transition-colors"
+            className="
+              flex-1 text-[10px] font-mono py-1.5 rounded-md
+              bg-white/[0.03] border border-white/[0.08]
+              text-white/45 hover:text-white/80 hover:bg-white/[0.06]
+              transition-colors
+            "
           >
             Cancel
           </button>
           <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onConfirm()
-            }}
-            className="flex-1 text-[10px] font-mono py-1.5 px-2 rounded-lg bg-red-500/15 border border-red-500/25 text-red-400 hover:bg-red-500/25 transition-colors"
+            onClick={(e) => { e.stopPropagation(); onConfirm() }}
+            className="
+              flex-1 text-[10px] font-mono py-1.5 rounded-md
+              bg-gradient-to-b from-red-500/25 to-red-500/15
+              border border-red-500/40
+              text-red-300 hover:text-red-200 hover:from-red-500/35
+              transition-colors
+              shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]
+            "
           >
             Delete
           </button>
@@ -231,7 +280,9 @@ function DeleteConfirm({
   )
 }
 
-// Time formatter
+/* ─────────────────────────────────────────────────────────────────────────────
+   TIME FORMAT
+   ───────────────────────────────────────────────────────────────────────────── */
 function formatTime(date: Date): string {
   const now  = new Date()
   const diff = now.getTime() - date.getTime()
@@ -239,14 +290,16 @@ function formatTime(date: Date): string {
   const hours = diff / 3_600_000
   const days  = diff / 86_400_000
 
-  if (mins  < 1)  return 'just now'
+  if (mins  < 1)  return 'now'
   if (hours < 1)  return `${Math.floor(mins)}m`
   if (days  < 1)  return `${Math.floor(hours)}h`
   if (days  < 7)  return date.toLocaleDateString('en-US', { weekday: 'short' })
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-// Main component
+/* ─────────────────────────────────────────────────────────────────────────────
+   MAIN COMPONENT
+   ───────────────────────────────────────────────────────────────────────────── */
 export function ConversationItem({
   conversation,
   isActive = false,
@@ -264,21 +317,15 @@ export function ConversationItem({
     if (!isRenaming && !confirmDelete) onSelect(conversation.id)
   }, [isRenaming, confirmDelete, onSelect, conversation.id])
 
-  const handlePin = useCallback(
-    (e: React.MouseEvent) => { 
-      e.stopPropagation()
-      if (!confirmDelete) onPin(conversation.id)
-    },
-    [onPin, conversation.id, confirmDelete]
-  )
+  const handlePin = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirmDelete) onPin(conversation.id)
+  }, [onPin, conversation.id, confirmDelete])
 
-  const handleDeleteClick = useCallback(
-    (e: React.MouseEvent) => { 
-      e.stopPropagation()
-      setConfirmDelete(true)
-    },
-    []
-  )
+  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    setConfirmDelete(true)
+  }, [])
 
   const handleDeleteCancel = useCallback((e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
@@ -291,132 +338,195 @@ export function ConversationItem({
     onDelete(conversation.id)
   }, [onDelete, conversation.id])
 
-  const handleRenameCommit = useCallback(
-    (title: string) => {
-      onRename?.(conversation.id, title)
-      setIsRenaming(false)
-    },
-    [onRename, conversation.id]
-  )
+  const handleRenameCommit = useCallback((title: string) => {
+    onRename?.(conversation.id, title)
+    setIsRenaming(false)
+  }, [onRename, conversation.id])
 
-  const handleRenameClick = useCallback(
-    (e: React.MouseEvent) => { 
-      e.stopPropagation()
-      setIsRenaming(true)
-    },
-    []
-  )
+  const handleRenameClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsRenaming(true)
+  }, [])
 
-  const showActions = (hovered || isActive) && !isRenaming && !confirmDelete
+  // Only show actions if there's at least one action available
+  const hasActions = onRename !== undefined || true // Pin and Delete are always available
+  const showActions = (hovered || isActive) && !isRenaming && !confirmDelete && hasActions
+
+  /* Per-item accent hue for variety */
+  const accentSeed = conversation.id.charCodeAt(conversation.id.length - 1) % 3
+  const accents = [
+    { dot: 'bg-indigo-400', ring: 'from-indigo-500/40', glow: 'bg-indigo-500/10' },
+    { dot: 'bg-violet-400', ring: 'from-violet-500/40', glow: 'bg-violet-500/10' },
+    { dot: 'bg-sky-400',    ring: 'from-sky-500/40',    glow: 'bg-sky-500/10'    },
+  ]
+  const accent = accents[accentSeed]
+
+  /* Normalize model name */
+  const displayModel = friendlyModelName(conversation.model)
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -8 }}
+      initial={{ opacity: 0, x: -6 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -6, scale: 0.97 }}
+      exit={{ opacity: 0, x: -4, scale: 0.97 }}
       transition={{
-        delay: index * 0.03,
-        duration: 0.28,
+        delay: index * 0.025,
+        duration: 0.3,
         ease: [0.23, 1, 0.32, 1],
       }}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { 
-        setHovered(false)
-        // Don't auto-close delete confirm on mouse leave - let user decide
-      }}
-      className="relative group"
+      onMouseLeave={() => setHovered(false)}
+      className="relative group px-1.5"
     >
       {/* Main row */}
       <motion.button
         onClick={handleSelect}
-        whileHover={{ x: 1 }}
-        transition={{ duration: 0.15 }}
+        whileHover={{ x: 1.5 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
         className={cn(
-          'relative w-full text-left rounded-xl px-3 py-2.5 transition-all duration-200',
+          'relative w-full text-left rounded-xl px-3 py-2.5',
+          'transition-all duration-250',
           'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/50',
+          'overflow-hidden',
           isActive
-            ? 'bg-indigo-500/[0.08] border border-indigo-500/[0.15]'
-            : 'border border-transparent hover:bg-white/[0.04] hover:border-white/[0.06]'
+            ? 'bg-gradient-to-r from-indigo-500/[0.09] via-indigo-500/[0.05] to-transparent border border-indigo-500/[0.18] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]'
+            : 'border border-transparent hover:bg-white/[0.03] hover:border-white/[0.05]'
         )}
       >
-        {/* Active left bar */}
+        {/* Active state — glowing left rail */}
         {isActive && (
+          <>
+            <motion.div
+              layoutId="activeBar"
+              className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-full bg-gradient-to-b from-indigo-400 via-indigo-300 to-indigo-500 shadow-[0_0_8px_rgba(129,140,248,0.6)]"
+            />
+            <div className={cn(
+              'absolute -left-4 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full blur-2xl pointer-events-none',
+              accent.glow
+            )} />
+          </>
+        )}
+
+        {/* Hover shimmer sweep */}
+        {hovered && !isActive && (
           <motion.div
-            layoutId="activeBar"
-            className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-indigo-400"
+            initial={{ x: '-100%', opacity: 0 }}
+            animate={{ x: '200%', opacity: 1 }}
+            transition={{ duration: 0.8, ease: 'easeInOut' }}
+            className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent pointer-events-none"
           />
         )}
 
-        {/* Top row: title + timestamp */}
-        <div className="flex items-start justify-between gap-2 min-w-0">
-          <div className="flex-1 min-w-0">
-            {isRenaming ? (
-              <RenameInput
-                initial={conversation.title}
-                onCommit={handleRenameCommit}
-                onCancel={() => setIsRenaming(false)}
-              />
-            ) : (
-              <div className="flex items-center gap-1.5 min-w-0">
-                {conversation.isPinned && (
-                  <span className="text-indigo-400/60 flex-shrink-0">
-                    <PinIcon filled />
-                  </span>
-                )}
-                <h3
-                  className={cn(
-                    'text-xs font-semibold truncate transition-colors duration-200',
-                    isActive ? 'text-white/90' : 'text-white/55 group-hover:text-white/75'
-                  )}
-                >
-                  {conversation.title}
-                </h3>
-              </div>
-            )}
+        {/* Content */}
+        <div className="relative flex items-start gap-2.5 min-w-0">
+          {/* Left dot indicator */}
+          <div className="flex-shrink-0 pt-1">
+            <div className={cn(
+              'w-1.5 h-1.5 rounded-full transition-all duration-300',
+              isActive
+                ? cn(accent.dot, 'shadow-[0_0_6px_currentColor]')
+                : 'bg-white/15 group-hover:bg-white/30'
+            )} />
           </div>
 
-          {/* Timestamp — hide when actions are visible to avoid crowding */}
-          <AnimatePresence mode="wait">
-            {!showActions && !confirmDelete && (
-              <motion.span
-                key="timestamp"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.12 }}
-                className="flex-shrink-0 text-[10px] font-mono text-white/20 mt-px"
+          {/* Main content column */}
+          <div className="flex-1 min-w-0">
+            {/* Top: title + timestamp */}
+            <div className="flex items-start justify-between gap-2 min-w-0">
+              <div className="flex-1 min-w-0">
+                {isRenaming ? (
+                  <RenameInput
+                    initial={conversation.title}
+                    onCommit={handleRenameCommit}
+                    onCancel={() => setIsRenaming(false)}
+                  />
+                ) : (
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {conversation.isPinned && (
+                      <span className="text-indigo-400/70 flex-shrink-0">
+                        <PinIcon filled />
+                      </span>
+                    )}
+                    <h3 className={cn(
+                      'text-[13px] font-semibold truncate transition-colors duration-200 tracking-tight',
+                      isActive
+                        ? 'text-white/95'
+                        : 'text-white/60 group-hover:text-white/85'
+                    )}>
+                      {conversation.title}
+                    </h3>
+                  </div>
+                )}
+              </div>
+
+              {/* Timestamp */}
+              <AnimatePresence mode="wait">
+                {!showActions && !confirmDelete && !isRenaming && (
+                  <motion.span
+                    key="timestamp"
+                    initial={{ opacity: 0, x: 4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 4 }}
+                    transition={{ duration: 0.14 }}
+                    className={cn(
+                      'flex-shrink-0 text-[10px] font-mono mt-px tracking-wide',
+                      isActive ? 'text-white/40' : 'text-white/25'
+                    )}
+                  >
+                    {formatTime(conversation.timestamp)}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Last message preview */}
+            {!isRenaming && (
+              <p className={cn(
+                'text-[11.5px] truncate mt-0.5 transition-colors duration-200 leading-snug',
+                isActive
+                  ? 'text-white/45'
+                  : 'text-white/28 group-hover:text-white/40'
+              )}>
+                {conversation.lastMessage}
+              </p>
+            )}
+
+            {/* ── Model chip + metadata ── */}
+            {!isRenaming && isActive && (
+              <motion.div
+                initial={{ opacity: 0, y: -2 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="flex items-center gap-1.5 mt-1.5"
               >
-                {formatTime(conversation.timestamp)}
-              </motion.span>
+                <span className={cn(
+                  'inline-flex items-center gap-1.5 text-[9px] font-mono px-2 py-0.5 rounded-md',
+                  'bg-gradient-to-b from-indigo-500/15 to-indigo-500/5',
+                  'border border-indigo-500/20',
+                  'text-indigo-300/85',
+                  'shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
+                  'uppercase tracking-wider font-semibold'
+                )}>
+                  {/* Live pulsing dot */}
+                  <span className="relative flex h-1 w-1">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-60 animate-ping" />
+                    <span className="relative inline-flex h-1 w-1 rounded-full bg-indigo-400" />
+                  </span>
+                  {displayModel}
+                </span>
+
+                {conversation.messageCount !== undefined && conversation.messageCount > 0 && (
+                  <span className="text-[9px] font-mono text-white/30 tracking-wider">
+                    {conversation.messageCount} msgs
+                  </span>
+                )}
+              </motion.div>
             )}
-          </AnimatePresence>
+          </div>
         </div>
-
-        {/* Last message preview */}
-        {!isRenaming && (
-          <p
-            className={cn(
-              'text-[11px] truncate mt-0.5 transition-colors duration-200',
-              isActive ? 'text-white/35' : 'text-white/20 group-hover:text-white/28'
-            )}
-          >
-            {conversation.lastMessage}
-          </p>
-        )}
-
-        {/* Model tag */}
-        {conversation.model && isActive && (
-          <motion.span
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="inline-flex items-center mt-1.5 text-[9px] font-mono px-1.5 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/15 text-indigo-400/70"
-          >
-            {conversation.model}
-          </motion.span>
-        )}
       </motion.button>
 
-      {/* Delete confirm popover - positioned absolutely over the item */}
+      {/* Delete confirmation popover */}
       <AnimatePresence>
         {confirmDelete && (
           <DeleteConfirm
@@ -426,24 +536,28 @@ export function ConversationItem({
         )}
       </AnimatePresence>
 
-      {/* Action buttons — appear on hover/active */}
+      {/* Floating action toolbar */}
       <AnimatePresence>
         {showActions && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.85 }}
-            transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10"
+            initial={{ opacity: 0, scale: 0.88, x: 4 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.88, x: 4 }}
+            transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 z-10"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-0.5 px-1 py-1 rounded-xl bg-[#0e0e16]/90 border border-white/[0.07] backdrop-blur-xl shadow-lg shadow-black/40">
+            <div className="
+              flex items-center gap-0.5 p-1 rounded-xl
+              bg-[#0a0a14]/90 backdrop-blur-2xl
+              border border-white/[0.08]
+              shadow-[0_8px_24px_-4px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]
+            ">
               {onRename && (
                 <ActionBtn onClick={handleRenameClick} tooltip="Rename">
                   <PencilIcon />
                 </ActionBtn>
               )}
-
               <ActionBtn
                 onClick={handlePin}
                 tooltip={conversation.isPinned ? 'Unpin' : 'Pin'}
@@ -451,6 +565,8 @@ export function ConversationItem({
               >
                 <PinIcon filled={!!conversation.isPinned} />
               </ActionBtn>
+
+              <div className="w-px h-4 bg-white/[0.06] mx-0.5" />
 
               <ActionBtn
                 onClick={handleDeleteClick}

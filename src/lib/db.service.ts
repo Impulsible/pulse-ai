@@ -1,8 +1,11 @@
 /* eslint-disable import/no-anonymous-default-export */
-// src/lib/db.service.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// src/lib/db.service.ts
 import { connectToDatabase } from './mongodb'
 import { ObjectId } from 'mongodb'
+
+// Default model label shown to users
+const DEFAULT_MODEL_LABEL = 'Pulse AI' // ✅ was 'Groq'
 
 // Helper to ensure db is not null
 async function getDb() {
@@ -15,14 +18,47 @@ async function getDb() {
 
 // User operations
 export const User = {
-  async create(data: { email: string; password: string; name?: string }) {
+  async create(data: {
+    email: string
+    password: string
+    name?: string
+    plan?: string
+    createdAt?: Date
+    updatedAt?: Date
+  }): Promise<{
+    id: string
+    email: string
+    name: string
+    password: string
+    plan: string
+    createdAt: Date
+    updatedAt: Date
+  }> {
     const db = await getDb()
     const result = await db.collection('users').insertOne({
-      ...data,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      email: data.email,
+      password: data.password,
+      name: data.name || data.email.split('@')[0],
+      plan: data.plan || 'free',
+      createdAt: data.createdAt || new Date(),
+      updatedAt: data.updatedAt || new Date(),
     })
-    return { id: result.insertedId.toString(), ...data }
+
+    const user = await db.collection('users').findOne({ _id: result.insertedId })
+
+    if (!user) {
+      throw new Error('Failed to create user')
+    }
+
+    return {
+      id: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      password: user.password,
+      plan: user.plan || 'free',
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    }
   },
 
   async findByEmail(email: string) {
@@ -59,7 +95,7 @@ export const Conversation = {
       userId: new ObjectId(data.userId),
       title: data.title || 'New Chat',
       isPinned: false,
-      model: 'Groq',
+      model: DEFAULT_MODEL_LABEL, // ✅ was 'Groq'
       createdAt: new Date(),
       updatedAt: new Date(),
     })
@@ -97,13 +133,15 @@ export const Conversation = {
 
 // Message operations
 export const Message = {
-  async create(data: { 
-    conversationId: string; 
-    role: string; 
-    content: string; 
-    userId?: string; 
-    tokens?: number; 
-    model?: string 
+  async create(data: {
+    conversationId: string
+    role: string
+    content: string
+    userId?: string
+    tokens?: number
+    model?: string
+    isError?: boolean
+    isStreaming?: boolean
   }) {
     const db = await getDb()
     const result = await db.collection('messages').insertOne({
@@ -112,9 +150,9 @@ export const Message = {
       role: data.role,
       content: data.content,
       tokens: data.tokens || 0,
-      model: data.model || 'Groq',
-      isError: false,
-      isStreaming: false,
+      model: data.model || DEFAULT_MODEL_LABEL, // ✅ was 'Groq'
+      isError: data.isError || false,
+      isStreaming: data.isStreaming || false,
       createdAt: new Date(),
       updatedAt: new Date(),
     })
@@ -131,8 +169,8 @@ export const Message = {
 
   async deleteByConversationId(conversationId: string) {
     const db = await getDb()
-    await db.collection('messages').deleteMany({ 
-      conversationId: new ObjectId(conversationId) 
+    await db.collection('messages').deleteMany({
+      conversationId: new ObjectId(conversationId)
     })
     return { success: true }
   },
@@ -140,7 +178,16 @@ export const Message = {
 
 // Settings operations
 export const Settings = {
-  async create(data: { userId: string; theme?: string; fontSize?: string; language?: string; notifications?: boolean; soundEffects?: boolean }) {
+  async create(data: {
+    userId: string
+    theme?: string
+    fontSize?: string
+    language?: string
+    notifications?: boolean
+    soundEffects?: boolean
+    createdAt?: Date
+    updatedAt?: Date
+  }) {
     const db = await getDb()
     const result = await db.collection('settings').insertOne({
       userId: new ObjectId(data.userId),
@@ -149,16 +196,16 @@ export const Settings = {
       language: data.language || 'en',
       notifications: data.notifications ?? true,
       soundEffects: data.soundEffects ?? true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: data.createdAt || new Date(),
+      updatedAt: data.updatedAt || new Date(),
     })
-    
+
     const settings = await db.collection('settings').findOne({ _id: result.insertedId })
-    
+
     if (!settings) {
       throw new Error('Failed to create settings')
     }
-    
+
     return {
       id: settings._id.toString(),
       userId: settings.userId.toString(),
@@ -174,8 +221,8 @@ export const Settings = {
 
   async findByUserId(userId: string) {
     const db = await getDb()
-    const settings = await db.collection('settings').findOne({ 
-      userId: new ObjectId(userId) 
+    const settings = await db.collection('settings').findOne({
+      userId: new ObjectId(userId)
     })
     if (!settings) return null
     return {

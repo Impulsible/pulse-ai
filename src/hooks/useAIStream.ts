@@ -1,210 +1,168 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // src/hooks/useAIStream.ts
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
+
+export type MessageRole = 'user' | 'assistant' | 'system'
+
+export interface StreamMessage {
+  role: MessageRole
+  content: string
+}
 
 interface StreamOptions {
+  /** Full conversation history (excluding the current message) */
+  history?: StreamMessage[]
+  /** Long-term memory context injected as an additional system message */
+  memoryContext?: string
+  /** User's name (for personalization) */
+  userName?: string
   onToken?: (token: string) => void
   onComplete?: (fullResponse: string) => void
   onError?: (error: Error) => void
-}
-
-interface Message {
-  role: 'user' | 'assistant' | 'system'
-  content: string
+  onAbort?: () => void
+  signal?: AbortSignal
+  model?: string
 }
 
 export function useAIStream() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamedContent, setStreamedContent] = useState('')
   const [error, setError] = useState<Error | null>(null)
-  // Store conversation history
-  const [conversationHistory, setConversationHistory] = useState<Message[]>([])
+  const abortControllerRef = useRef<AbortController | null>(null)
 
-  const streamMessage = useCallback(async (
-    message: string,
-    options: StreamOptions = {}
-  ) => {
-    setIsStreaming(true)
-    setStreamedContent('')
-    setError(null)
+  const streamMessage = useCallback(
+    async (message: string, options: StreamOptions = {}) => {
+      // Cancel any in-flight request
+      abortControllerRef.current?.abort()
+      const controller = new AbortController()
+      abortControllerRef.current = controller
 
-    try {
-      // Add user message to history
-      const userMessage: Message = { role: 'user', content: message }
-      const updatedHistory = [...conversationHistory, userMessage]
-      
-      console.log('📤 Sending message with history:', updatedHistory.length, 'messages')
+      setIsStreaming(true)
+      setStreamedContent('')
+      setError(null)
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message,
-          stream: true,
-          messages: updatedHistory, // Send full history
-        }),
+      const history = options.history ?? []
+
+      console.log('📤 [useAIStream] Sending:', {
+        newMessage: message.slice(0, 60),
+        historyLength: history.length,
+        historyRoles: history.map((m) => m.role).join(' → '),
+        hasMemory: !!options.memoryContext,
+        memoryLength: options.memoryContext?.length ?? 0,
       })
 
-      console.log('📊 Response status:', response.status)
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message,
+            messages: history,                    // ← Short-term memory
+            memoryContext: options.memoryContext, // ← Long-term memory
+            userName: options.userName,
+            stream: true,
+            model: options.model,
+          }),
+          signal: options.signal ?? controller.signal,
+        })
 
-      if (!response.ok) {
-        let errorMessage = `HTTP error! status: ${response.status}`
-        try {
-          const errorData = await response.json()
-          errorMessage = errorData.error || errorMessage
-          console.error('❌ API error response:', errorData)
-        } catch (e) {
+        if (!response.ok) {
+          let errorMessage = `HTTP ${response.status}`
           try {
-            const text = await response.text()
-            console.error('❌ API error text:', text)
-            if (text) errorMessage = text
-          } catch (textError) {
-            // Ignore
+            const errorData = await response.json()
+            errorMessage = errorData.error || errorMessage
+          } catch {
+            try {
+              errorMessage = (await response.text()) || errorMessage
+            } catch { /* noop */ }
           }
-        }
-        throw new Error(errorMessage)
-      }
-
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('No response body available')
-      }
-
-      const decoder = new TextDecoder()
-      let fullContent = ''
-      let buffer = ''
-
-      console.log('🔄 Reading stream...')
-
-      while (true) {
-        const { done, value } = await reader.read()
-        
-        if (done) {
-          // Add assistant response to history
-          if (fullContent) {
-            const assistantMessage: Message = { role: 'assistant', content: fullContent }
-            setConversationHistory([...updatedHistory, assistantMessage])
-          }
-          console.log('✅ Stream complete, full content length:', fullContent.length)
-          options.onComplete?.(fullContent)
-          break
+          throw new Error(errorMessage)
         }
 
-        const chunk = decoder.decode(value, { stream: true })
-        buffer += chunk
+        const reader = response.body?.getReader()
+        if (!reader) throw new Error('No response body')
 
-        // Process SSE messages
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
+        const decoder = new TextDecoder()
+        let fullContent = ''
+        let buffer = ''
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
             const data = line.slice(6).trim()
-            
+
             if (data === '[DONE]') {
-              console.log('✅ Stream done signal received')
-              if (fullContent) {
-                const assistantMessage: Message = { role: 'assistant', content: fullContent }
-                setConversationHistory([...updatedHistory, assistantMessage])
-              }
               options.onComplete?.(fullContent)
               setIsStreaming(false)
-              return
+              return fullContent
             }
+            if (!data) continue
 
-            if (data) {
-              try {
-                const parsed = JSON.parse(data)
-                
-                if (parsed.error) {
-                  console.error('❌ Stream error:', parsed.error)
-                  throw new Error(parsed.error)
-                }
-                
-                const token = parsed.token || parsed.choices?.[0]?.delta?.content || ''
-                
-                if (token) {
-                  fullContent += token
-                  setStreamedContent(fullContent)
-                  options.onToken?.(token)
-                }
-              } catch (e) {
-                if (e instanceof Error && e.message) {
-                  throw e
-                }
-                console.warn('⚠️ Failed to parse SSE data:', data, e)
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.error) throw new Error(parsed.error)
+
+              const token: string =
+                parsed.token ||
+                parsed.choices?.[0]?.delta?.content ||
+                ''
+
+              if (token) {
+                fullContent += token
+                setStreamedContent(fullContent)
+                options.onToken?.(token)
               }
+            } catch (e) {
+              if (e instanceof Error && e.message) throw e
+              console.warn('⚠ SSE parse:', data)
             }
           }
         }
-      }
 
-      // Process any remaining buffer
-      if (buffer && buffer.startsWith('data: ')) {
-        const data = buffer.slice(6).trim()
-        if (data && data !== '[DONE]') {
-          try {
-            const parsed = JSON.parse(data)
-            const token = parsed.token || parsed.choices?.[0]?.delta?.content || ''
-            if (token) {
-              fullContent += token
-              setStreamedContent(fullContent)
-              options.onToken?.(token)
-            }
-          } catch (e) {
-            console.warn('⚠️ Failed to parse final buffer:', data, e)
-          }
+        options.onComplete?.(fullContent)
+        return fullContent
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          options.onAbort?.()
+          return
         }
+        const errorObj = err instanceof Error ? err : new Error('Stream failed')
+        console.error('❌ [useAIStream]', errorObj.message)
+        setError(errorObj)
+        options.onError?.(errorObj)
+      } finally {
+        setIsStreaming(false)
       }
+    },
+    []
+  )
 
-      // Add assistant response to history if not already added
-      if (fullContent) {
-        // Check if already added to avoid duplicates
-        const lastMessage = conversationHistory[conversationHistory.length - 1]
-        if (!lastMessage || lastMessage.role !== 'assistant' || lastMessage.content !== fullContent) {
-          const assistantMessage: Message = { role: 'assistant', content: fullContent }
-          setConversationHistory([...updatedHistory, assistantMessage])
-        }
-      }
-
-      options.onComplete?.(fullContent)
-    } catch (error) {
-      console.error('❌ Streaming error:', error)
-      const err = error instanceof Error ? error : new Error('Failed to stream response')
-      setError(err)
-      options.onError?.(err)
-    } finally {
-      setIsStreaming(false)
-    }
-  }, [conversationHistory])
-
-  const reset = useCallback(() => {
-    setConversationHistory([])
-    setStreamedContent('')
-    setError(null)
+  const abort = useCallback(() => {
+    abortControllerRef.current?.abort()
     setIsStreaming(false)
   }, [])
 
-  const clearHistory = useCallback(() => {
-    setConversationHistory([])
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort()
+    }
   }, [])
-
-  const getHistory = useCallback(() => {
-    return conversationHistory
-  }, [conversationHistory])
 
   return {
     isStreaming,
     streamedContent,
     error,
     streamMessage,
-    reset,
-    clearHistory,
-    getHistory,
-    conversationHistory,
+    abort,
+    // Legacy no-op for backward compat
+    clearHistory: () => {},
   }
 }

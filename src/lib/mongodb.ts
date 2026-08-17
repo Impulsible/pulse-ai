@@ -1,7 +1,7 @@
 // src/lib/mongodb.ts
 import { MongoClient, Db } from 'mongodb'
 
-const MONGODB_URI = process.env.DATABASE_URL
+const MONGODB_URI = process.env.DATABASE_URL || process.env.MONGODB_URI
 const MONGODB_DB = process.env.MONGODB_DB || 'pulseai'
 
 let cachedClient: MongoClient | null = null
@@ -36,10 +36,13 @@ export async function connectToDatabase() {
 
 // Helper to check if database is connected
 export function isDatabaseConnected(): boolean {
-  return !!MONGODB_URI
+  return !!MONGODB_URI && cachedClient !== null && cachedDb !== null
 }
 
 // Helper to get cached connection without connecting
 export function getCachedConnection() {
   return { client: cachedClient, db: cachedDb }
 }
+
+// Alias for backward compatibility
+export const connectDB = connectToDatabase

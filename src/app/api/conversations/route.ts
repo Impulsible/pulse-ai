@@ -9,7 +9,7 @@ import { ObjectId } from 'mongodb'
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user?.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -18,14 +18,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { db } = await connectToDatabase()
-    
+
     if (!db) {
       return NextResponse.json(
         { error: 'Database connection failed' },
         { status: 503 }
       )
     }
-    
+
     const conversations = await db.collection('conversations')
       .find({ userId: new ObjectId(session.user.id) })
       .sort({ updatedAt: -1 })
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user?.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     const { title } = body
 
     const { db } = await connectToDatabase()
-    
+
     if (!db) {
       return NextResponse.json(
         { error: 'Database connection failed' },
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       userId: new ObjectId(session.user.id),
       title: title || 'New Chat',
       isPinned: false,
-      model: 'Groq',
+      model: 'Pulse AI', // ✅ was 'Groq'
       createdAt: new Date(),
       updatedAt: new Date(),
     })

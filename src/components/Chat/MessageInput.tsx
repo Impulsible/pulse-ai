@@ -5,172 +5,163 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/utils/cn'
 
-// Types
+// ─── Types ───────────────────────────────────────────────────────────────────────
 interface MessageInputProps {
   onSendMessage: (content: string) => void
+  onStopGenerating?: () => void
+  onFileAttach?: (files: FileList) => void
+  onVoiceToggle?: (isRecording: boolean) => void
   disabled?: boolean
   className?: string
   placeholder?: string
   maxHeight?: number
+  maxLength?: number
+  /** Show suggestion chips above input when empty */
+  suggestions?: Array<{ label: string; prompt: string; icon?: React.ReactNode }>
 }
 
-// Icons
-function PaperclipIcon() {
-  return (
-    <svg
-      width="15" height="15" viewBox="0 0 24 24"
-      fill="none" stroke="currentColor"
-      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-    >
+// ─── Icons ───────────────────────────────────────────────────────────────────────
+const I = {
+  Paperclip: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
     </svg>
-  )
-}
-
-function MicIcon() {
-  return (
-    <svg
-      width="15" height="15" viewBox="0 0 24 24"
-      fill="none" stroke="currentColor"
-      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-    >
+  ),
+  Mic: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
       <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
       <line x1="12" y1="19" x2="12" y2="22" />
-      <line x1="8" y1="22" x2="16" y2="22" />
     </svg>
-  )
+  ),
+  Send: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12l14-7-7 14-2-5-5-2z" />
+    </svg>
+  ),
+  ArrowUp: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <polyline points="5 12 12 5 19 12" />
+    </svg>
+  ),
+  Stop: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+  ),
 }
 
-function SendIcon() {
+// ─── Suggestion Chip ─────────────────────────────────────────────────────────────
+function SuggestionChip({
+  label,
+  icon,
+  onClick,
+}: {
+  label: string
+  icon?: React.ReactNode
+  onClick: () => void
+}) {
   return (
-    <svg
-      width="15" height="15" viewBox="0 0 24 24"
-      fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.02] text-[13px] text-white/60 hover:text-white/90 hover:bg-white/[0.05] hover:border-white/[0.15] transition-all duration-150 whitespace-nowrap"
     >
-      <line x1="22" y1="2" x2="11" y2="13" />
-      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-    </svg>
+      {icon && <span className="text-white/40">{icon}</span>}
+      {label}
+    </button>
   )
 }
 
-function StopIcon() {
+// ─── Icon Button ─────────────────────────────────────────────────────────────────
+function IconButton({
+  onClick,
+  disabled = false,
+  active = false,
+  children,
+  className,
+  'aria-label': ariaLabel,
+  title,
+}: {
+  onClick?: () => void
+  disabled?: boolean
+  active?: boolean
+  children: React.ReactNode
+  className?: string
+  'aria-label': string
+  title?: string
+}) {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-      <rect x="1" y="1" width="10" height="10" rx="2" />
-    </svg>
-  )
-}
-
-// Inline tooltip
-function Tip({ label, children }: { label: string; children: React.ReactNode }) {
-  const [show, setShow] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const enter = () => { timer.current = setTimeout(() => setShow(true), 500) }
-  const leave = () => {
-    if (timer.current) clearTimeout(timer.current)
-    setShow(false)
-  }
-
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
-
-  return (
-    <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      title={title}
+      className={cn(
+        'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
+        disabled
+          ? 'text-white/15 cursor-not-allowed'
+          : active
+          ? 'text-indigo-400 bg-indigo-500/10'
+          : 'text-white/50 hover:text-white/90 hover:bg-white/[0.06]',
+        className
+      )}
+    >
       {children}
-      <AnimatePresence>
-        {show && (
-          <motion.div
-            initial={{ opacity: 0, y: 4, scale: 0.92 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 2, scale: 0.94 }}
-            transition={{ duration: 0.12 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none"
-          >
-            <div className="px-2 py-1 rounded-lg bg-[#111118] border border-white/[0.08] shadow-xl shadow-black/50">
-              <p className="text-[10px] font-mono text-white/50 whitespace-nowrap">{label}</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    </button>
+  )
+}
+
+// ─── Voice Recording Wave ────────────────────────────────────────────────────────
+function VoiceWave() {
+  return (
+    <div className="flex items-center gap-[2px] h-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <motion.div
+          key={i}
+          className="w-[2px] rounded-full bg-red-400"
+          animate={{ height: [4, 12, 4] }}
+          transition={{
+            duration: 0.6 + i * 0.1,
+            repeat: Infinity,
+            ease: 'easeInOut',
+            delay: i * 0.08,
+          }}
+        />
+      ))}
     </div>
   )
 }
 
-// Toolbar icon button
-function ToolBtn({
-  onClick,
-  tooltip,
-  children,
-  active = false,
-  className = '',
-  'aria-label': ariaLabel,
-}: {
-  onClick?: () => void
-  tooltip: string
-  children: React.ReactNode
-  active?: boolean
-  className?: string
-  'aria-label': string
-}) {
-  return (
-    <Tip label={tooltip}>
-      <motion.button
-        type="button"
-        onClick={onClick}
-        aria-label={ariaLabel}
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.92 }}
-        className={cn(
-          'w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0',
-          'transition-colors duration-150',
-          active
-            ? 'text-indigo-400 bg-indigo-500/10'
-            : 'text-white/25 hover:text-white/60 hover:bg-white/[0.06]',
-          className
-        )}
-      >
-        {children}
-      </motion.button>
-    </Tip>
-  )
-}
-
-// Character count indicator
-function CharCount({ count, limit }: { count: number; limit: number }) {
-  if (count < limit * 0.7) return null
-
-  const pct   = count / limit
-  const color = pct > 0.95 ? 'text-red-400' : pct > 0.85 ? 'text-amber-400' : 'text-white/20'
-
-  return (
-    <motion.span
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className={cn('text-[9px] font-mono tabular-nums', color)}
-    >
-      {count}/{limit}
-    </motion.span>
-  )
-}
-
-// Main component
+// ═══════════════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════════
 export function MessageInput({
   onSendMessage,
+  onStopGenerating,
+  onFileAttach,
+  onVoiceToggle,
   disabled = false,
   className,
   placeholder = 'Message Pulse…',
-  maxHeight = 180,
+  maxHeight = 200,
+  maxLength = 8000,
+  suggestions,
 }: MessageInputProps) {
-  const [message,  setMessage]  = useState('')
-  const [focused,  setFocused]  = useState(false)
+  const [message, setMessage] = useState('')
+  const [focused, setFocused] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const CHAR_LIMIT = 4000
-  const canSend    = message.trim().length > 0 && !disabled && message.length <= CHAR_LIMIT
+  const trimmed = message.trim()
+  const canSend = trimmed.length > 0 && !disabled && message.length <= maxLength
+  const isOverLimit = message.length > maxLength
+  const isNearLimit = message.length > maxLength * 0.9
 
-  // Auto-resize textarea
+  // ─── Auto-resize textarea ────────────────────────────────
   const resize = useCallback(() => {
     const el = textareaRef.current
     if (!el) return
@@ -178,19 +169,23 @@ export function MessageInput({
     el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
   }, [maxHeight])
 
-  // Send
+  useEffect(() => { resize() }, [message, resize])
+
+  // ─── Send message ────────────────────────────────────────
   const handleSend = useCallback(() => {
     if (!canSend) return
-    onSendMessage(message.trim())
+    onSendMessage(trimmed)
     setMessage('')
     requestAnimationFrame(() => {
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto'
+      const el = textareaRef.current
+      if (el) {
+        el.style.height = 'auto'
+        el.focus()
       }
     })
-  }, [canSend, message, onSendMessage])
+  }, [canSend, trimmed, onSendMessage])
 
-  // Keyboard
+  // ─── Keyboard shortcuts ──────────────────────────────────
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -201,64 +196,106 @@ export function MessageInput({
     [handleSend]
   )
 
-  // Change
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const val = e.target.value
-      if (val.length <= CHAR_LIMIT) setMessage(val)
-      resize()
-    },
-    [resize]
-  )
+  // ─── Text change ─────────────────────────────────────────
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(e.target.value)
+  }, [])
 
-  // Focus the textarea on mount
+  // ─── Suggestion click ────────────────────────────────────
+  const handleSuggestion = useCallback((prompt: string) => {
+    setMessage(prompt)
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+    })
+  }, [])
+
+  // ─── File attach ─────────────────────────────────────────
+  const handleFileClick = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      onFileAttach?.(e.target.files)
+    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [onFileAttach])
+
+  // ─── Voice ───────────────────────────────────────────────
+  const handleVoiceToggle = useCallback(() => {
+    const next = !isRecording
+    setIsRecording(next)
+    onVoiceToggle?.(next)
+  }, [isRecording, onVoiceToggle])
+
+  // ─── Auto-focus on mount ─────────────────────────────────
   useEffect(() => {
     if (!disabled) textareaRef.current?.focus()
   }, [disabled])
 
+  // Determine which button to show (send / stop / mic)
+  const showStopButton = disabled && onStopGenerating
+  const showSendButton = trimmed.length > 0 && !disabled
+  const showMicButton = !showStopButton && !showSendButton
+
   return (
-    <div className={cn('relative w-full max-w-3xl mx-auto', className)}>
-      {/* Outer container */}
+    <div className={cn('relative w-full max-w-3xl mx-auto px-4', className)}>
+
+      {/* ── Suggestion Chips ──────────────────────────── */}
+      <AnimatePresence>
+        {suggestions && suggestions.length > 0 && !disabled && message.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.18 }}
+            className="flex items-center gap-2 mb-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {suggestions.map((s, i) => (
+              <SuggestionChip
+                key={i}
+                label={s.label}
+                icon={s.icon}
+                onClick={() => handleSuggestion(s.prompt)}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Main Input Container - NO border, NO background ── */}
       <div
-        className="relative rounded-2xl transition-all duration-300"
-        style={{
-          boxShadow: focused
-            ? '0 0 0 1px rgba(99,102,241,0.25), 0 0 30px rgba(99,102,241,0.06)'
-            : 'none',
-        }}
+        className={cn(
+          'relative rounded-3xl transition-all duration-200',
+          'bg-transparent',
+          focused
+            ? 'shadow-[0_0_0_1px_rgba(99,102,241,0.15),0_8px_32px_rgba(0,0,0,0.4)]'
+            : 'shadow-[0_4px_20px_rgba(0,0,0,0.3)]'
+        )}
       >
-        {/* Focus gradient border */}
-        <div
-          className="absolute -inset-px rounded-2xl pointer-events-none transition-opacity duration-300"
-          style={{
-            background: 'linear-gradient(135deg, rgba(99,102,241,0.18), transparent, rgba(139,92,246,0.12))',
-            opacity: focused ? 1 : 0,
-          }}
+        {/* File input (hidden) */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          onChange={handleFileChange}
+          className="hidden"
+          accept="image/*,.pdf,.txt,.doc,.docx,.csv,.md,.json"
         />
 
-        {/* Inner card */}
-        <div className="relative rounded-2xl bg-white/[0.02] border border-white/[0.07] overflow-hidden">
-          {/* Focus top accent line */}
-          <div
-            className="absolute top-0 left-[15%] right-[15%] h-px transition-opacity duration-300"
-            style={{
-              background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.4), transparent)',
-              opacity: focused ? 1 : 0,
-            }}
-          />
+        <div className="flex items-end gap-1 px-2 py-1.5">
+          {/* Left: Attach button */}
+          <IconButton
+            onClick={handleFileClick}
+            disabled={disabled}
+            aria-label="Attach files"
+            title="Attach files"
+          >
+            <I.Paperclip />
+          </IconButton>
 
-          {/* Text area row */}
-          <div className="flex items-end gap-1.5 px-3 py-2.5">
-            {/* Attach */}
-            <ToolBtn
-              onClick={() => {/* wire up file picker */}}
-              tooltip="Attach file"
-              aria-label="Attach file"
-            >
-              <PaperclipIcon />
-            </ToolBtn>
-
-            {/* Textarea */}
+          {/* Textarea */}
+          <div className="flex-1 relative py-2">
             <textarea
               ref={textareaRef}
               value={message}
@@ -269,160 +306,103 @@ export function MessageInput({
               placeholder={placeholder}
               disabled={disabled}
               rows={1}
-              className="
-                flex-1 min-h-[36px] py-2 bg-transparent
-                text-sm text-white/75 placeholder:text-white/20
-                font-mono
-                resize-none outline-none
-                caret-indigo-400
-                disabled:opacity-40 disabled:cursor-not-allowed
-                [scrollbar-width:thin]
-                [scrollbar-color:rgba(255,255,255,0.06)_transparent]
-              "
-              style={{ maxHeight: `${maxHeight}px` }}
-            />
-
-            {/* Voice */}
-            <ToolBtn
-              onClick={() => {/* wire up voice */}}
-              tooltip="Voice input"
-              aria-label="Voice input"
-            >
-              <MicIcon />
-            </ToolBtn>
-
-            {/* Send / Stop */}
-            <AnimatePresence mode="wait">
-              {disabled ? (
-                <motion.div
-                  key="stop"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  exit={{ scale: 0 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  <Tip label="Stop generating">
-                    <motion.button
-                      type="button"
-                      aria-label="Stop generating"
-                      whileHover={{ scale: 1.08 }}
-                      whileTap={{ scale: 0.9 }}
-                      className="
-                        w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0
-                        bg-red-500/15 border border-red-500/25
-                        text-red-400 hover:bg-red-500/25
-                        transition-colors duration-150
-                      "
-                    >
-                      <StopIcon />
-                    </motion.button>
-                  </Tip>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="send"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  exit={{ scale: 0 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  <Tip label={canSend ? 'Send message' : 'Type a message'}>
-                    <motion.button
-                      type="button"
-                      onClick={handleSend}
-                      disabled={!canSend}
-                      aria-label="Send message"
-                      whileHover={canSend ? { scale: 1.08 } : {}}
-                      whileTap={canSend ? { scale: 0.9 } : {}}
-                      className={cn(
-                        'group relative overflow-hidden w-8 h-8 rounded-xl',
-                        'flex items-center justify-center flex-shrink-0',
-                        'transition-all duration-200',
-                        'disabled:cursor-not-allowed',
-                      )}
-                      style={{
-                        background: canSend
-                          ? 'linear-gradient(135deg, rgba(99,102,241,0.6), rgba(139,92,246,0.4))'
-                          : 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${canSend ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.06)'}`,
-                        boxShadow: canSend
-                          ? '0 0 16px rgba(99,102,241,0.2)'
-                          : 'none',
-                      }}
-                    >
-                      {/* Shimmer sweep */}
-                      {canSend && (
-                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-500 bg-gradient-to-r from-transparent via-white/[0.12] to-transparent pointer-events-none" />
-                      )}
-                      <span
-                        className="relative z-10 transition-colors duration-150"
-                        style={{ color: canSend ? '#c7d2fe' : 'rgba(255,255,255,0.15)' }}
-                      >
-                        <SendIcon />
-                      </span>
-                    </motion.button>
-                  </Tip>
-                </motion.div>
+              maxLength={maxLength + 500}
+              className={cn(
+                'w-full bg-transparent',
+                'text-[15px] text-white/90 placeholder:text-white/30',
+                'leading-6',
+                'resize-none outline-none',
+                'disabled:opacity-40 disabled:cursor-not-allowed',
+                '[scrollbar-width:thin]',
+                '[scrollbar-color:rgba(255,255,255,0.1)_transparent]'
               )}
-            </AnimatePresence>
+              style={{
+                maxHeight: `${maxHeight}px`,
+                minHeight: '24px',
+              }}
+            />
           </div>
 
-          {/* Footer row */}
-          <div className="flex items-center justify-between px-4 py-1.5 border-t border-white/[0.04]">
-            {/* Keyboard hints */}
-            <div className="flex items-center gap-3 text-[9px] font-mono text-white/15">
-              <span className="flex items-center gap-1">
-                <kbd className="px-1 py-0.5 rounded bg-white/[0.04] border border-white/[0.07] text-[8px]">
-                  ↵
-                </kbd>
-                send
-              </span>
-              <span className="flex items-center gap-1">
-                <kbd className="px-1 py-0.5 rounded bg-white/[0.04] border border-white/[0.07] text-[8px]">
-                  ⇧↵
-                </kbd>
-                newline
-              </span>
-            </div>
+          {/* Right: Action button (Send / Stop / Mic) */}
+          <div className="flex items-center gap-0.5">
+            {/* Character count (only near limit) */}
+            <AnimatePresence>
+              {isNearLimit && (
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className={cn(
+                    'text-[11px] tabular-nums mr-2 self-center',
+                    isOverLimit ? 'text-red-400' : 'text-amber-400'
+                  )}
+                >
+                  {maxLength - message.length}
+                </motion.span>
+              )}
+            </AnimatePresence>
 
-            {/* Right side: char count + model */}
-            <div className="flex items-center gap-3">
-              <CharCount count={message.length} limit={CHAR_LIMIT} />
-              <div className="flex items-center gap-1.5">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 animate-ping opacity-60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                </span>
-                <span className="text-[9px] font-mono text-indigo-400/40">
-                  Groq
-                </span>
-                <span className="text-[9px] font-mono text-white/15">·</span>
-                <span className="text-[9px] font-mono text-emerald-400/40">
-                  Fast
-                </span>
-              </div>
-            </div>
+            <AnimatePresence mode="wait" initial={false}>
+              {showStopButton ? (
+                <motion.button
+                  key="stop"
+                  type="button"
+                  onClick={onStopGenerating}
+                  aria-label="Stop generating"
+                  title="Stop generating"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.08] hover:bg-white/[0.12] border border-white/[0.1] text-white/80 transition-colors"
+                >
+                  <I.Stop />
+                </motion.button>
+              ) : showSendButton ? (
+                <motion.button
+                  key="send"
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!canSend}
+                  aria-label="Send message"
+                  title="Send (↵)"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className={cn(
+                    'flex h-9 w-9 items-center justify-center rounded-lg transition-all',
+                    canSend
+                      ? 'bg-white text-black hover:bg-white/90 active:scale-95'
+                      : 'bg-white/[0.08] text-white/30 cursor-not-allowed'
+                  )}
+                >
+                  <I.ArrowUp />
+                </motion.button>
+              ) : showMicButton ? (
+                <motion.div
+                  key="mic"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <IconButton
+                    onClick={handleVoiceToggle}
+                    disabled={disabled}
+                    active={isRecording}
+                    aria-label={isRecording ? 'Stop recording' : 'Voice input'}
+                    title={isRecording ? 'Stop recording' : 'Voice input'}
+                    className={isRecording ? 'text-red-400 bg-red-500/10' : ''}
+                  >
+                    {isRecording ? <VoiceWave /> : <I.Mic />}
+                  </IconButton>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </div>
         </div>
       </div>
-
-      {/* Status bar below input */}
-      <AnimatePresence>
-        {!disabled && message.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 4 }}
-            className="flex items-center justify-center gap-3 mt-2 text-[10px] font-mono text-white/15"
-          >
-            <span>Powered by</span>
-            <span className="text-emerald-400/50">Groq</span>
-            <span className="w-px h-3 bg-white/[0.06]" />
-            <span className="text-indigo-400/30">⚡</span>
-            <span>Fast AI responses</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }
