@@ -12,7 +12,10 @@ import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { PulseRobot } from '@/components/Pulse/PulseRobot'
 import { cn } from '@/utils/cn'
 
-// ─── Types ───────────────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════════
+   TYPES
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 interface AIMessageProps {
   content: string
   model?: string
@@ -26,7 +29,10 @@ interface AIMessageProps {
   className?: string
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 function normalizeModelName(model?: string): string {
   if (!model || model.toLowerCase() === 'groq') return 'Pulse AI'
   return model
@@ -43,7 +49,6 @@ function formatTimestamp(ts?: string): string {
   }
 }
 
-// ─── Strip Markdown for TTS ──────────────────────────────────────────────────────
 function stripMarkdownForTTS(text: string): string {
   let cleaned = text
   cleaned = cleaned.replace(/```[\s\S]*?```/g, '')
@@ -67,7 +72,45 @@ function stripMarkdownForTTS(text: string): string {
   return cleaned.trim()
 }
 
-// ─── Icons ───────────────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════════
+   HOOKS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/** Reactive mobile detection */
+function useIsMobile(breakpoint = 640): boolean {
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`)
+    const check = () => setIsMobile(mql.matches)
+    check()
+    if (mql.addEventListener) {
+      mql.addEventListener('change', check)
+      return () => mql.removeEventListener('change', check)
+    } else {
+      mql.addListener(check)
+      return () => mql.removeListener(check)
+    }
+  }, [breakpoint])
+  return isMobile
+}
+
+/** Detect touch device (actions always visible on touch) */
+function useIsTouchDevice(): boolean {
+  const [isTouch, setIsTouch] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setIsTouch(
+      window.matchMedia('(hover: none) and (pointer: coarse)').matches
+    )
+  }, [])
+  return isTouch
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ICONS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 const I = {
   Copy: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -119,10 +162,20 @@ const I = {
       <rect x="4" y="4" width="16" height="16" rx="2" />
     </svg>
   ),
+  More: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+      <circle cx="5" cy="12" r="1" />
+    </svg>
+  ),
 }
 
-// ─── TTS Button ──────────────────────────────────────────────────────────────────
-function TTSButton({ text }: { text: string }) {
+/* ═══════════════════════════════════════════════════════════════════════════════
+   TTS BUTTON
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+function TTSButton({ text, compact = false }: { text: string; compact?: boolean }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [isSupported, setIsSupported] = useState(true)
@@ -137,9 +190,7 @@ function TTSButton({ text }: { text: string }) {
       setIsSupported(false)
     }
     return () => {
-      if (synthRef.current) {
-        synthRef.current.cancel()
-      }
+      if (synthRef.current) synthRef.current.cancel()
     }
   }, [])
 
@@ -151,9 +202,10 @@ function TTSButton({ text }: { text: string }) {
     utterance.pitch = 1.0
     utterance.volume = 1.0
     const voices = synthRef.current.getVoices()
-    const preferredVoice = voices.find(
-      (v) => v.lang.startsWith('en') && v.name.includes('Google')
-    ) || voices.find((v) => v.lang.startsWith('en')) || voices[0]
+    const preferredVoice =
+      voices.find((v) => v.lang.startsWith('en') && v.name.includes('Google')) ||
+      voices.find((v) => v.lang.startsWith('en')) ||
+      voices[0]
     if (preferredVoice) utterance.voice = preferredVoice
     utterance.onstart = () => { setIsPlaying(true); setIsPaused(false) }
     utterance.onpause = () => setIsPaused(true)
@@ -198,14 +250,20 @@ function TTSButton({ text }: { text: string }) {
 
   if (!isSupported || !cleanText) return null
 
+  const btnSize = compact ? 'h-7 w-7' : 'h-8 w-8 sm:h-7 sm:w-7'
+
   return (
     <div className="flex items-center gap-0.5">
       {!isPlaying ? (
         <button
           onClick={handlePlay}
-          className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/25 hover:text-white/70 transition-colors"
+          className={cn(
+            'flex items-center justify-center rounded-md hover:bg-white/[0.06] active:bg-white/[0.1]',
+            'text-white/25 hover:text-white/70 transition-colors touch-manipulation',
+            btnSize
+          )}
           aria-label="Play audio"
-          title="Listen to this message"
+          title="Listen"
         >
           <I.Play />
         </button>
@@ -213,7 +271,11 @@ function TTSButton({ text }: { text: string }) {
         <>
           <button
             onClick={handlePause}
-            className="p-1.5 rounded-lg hover:bg-white/[0.06] text-[#6366f1] hover:text-[#818cf8] transition-colors"
+            className={cn(
+              'flex items-center justify-center rounded-md hover:bg-white/[0.06] active:bg-white/[0.1]',
+              'text-[#6366f1] hover:text-[#818cf8] transition-colors touch-manipulation',
+              btnSize
+            )}
             aria-label={isPaused ? 'Resume audio' : 'Pause audio'}
             title={isPaused ? 'Resume' : 'Pause'}
           >
@@ -221,7 +283,11 @@ function TTSButton({ text }: { text: string }) {
           </button>
           <button
             onClick={handleStop}
-            className="p-1.5 rounded-lg hover:bg-white/[0.06] text-red-400/60 hover:text-red-400 transition-colors"
+            className={cn(
+              'flex items-center justify-center rounded-md hover:bg-white/[0.06] active:bg-white/[0.1]',
+              'text-red-400/60 hover:text-red-400 transition-colors touch-manipulation',
+              btnSize
+            )}
             aria-label="Stop audio"
             title="Stop"
           >
@@ -233,9 +299,13 @@ function TTSButton({ text }: { text: string }) {
   )
 }
 
-// ─── Code Block ──────────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CODE BLOCK — Mobile-friendly with horizontal scroll
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 function CodeBlock({ language = 'text', code }: { language?: string; code: string }) {
   const [copied, setCopied] = useState(false)
+  const isMobile = useIsMobile()
 
   const handleCopy = useCallback(async () => {
     try {
@@ -248,13 +318,42 @@ function CodeBlock({ language = 'text', code }: { language?: string; code: strin
   }, [code])
 
   return (
-    <div className="my-3 overflow-hidden rounded-lg border border-white/[0.06] bg-[#0a0a0f]">
-      <div className="flex items-center justify-between border-b border-white/[0.05] bg-white/[0.02] px-3 py-2">
-        <span className="text-[11px] font-mono text-white/45">{language}</span>
+    <div className="
+      my-2.5 sm:my-3
+      overflow-hidden
+      rounded-lg
+      border border-white/[0.06]
+      bg-[#0a0a0f]
+      -mx-1 sm:mx-0
+    ">
+      {/* Header */}
+      <div className="
+        flex items-center justify-between
+        border-b border-white/[0.05]
+        bg-white/[0.02]
+        px-2.5 sm:px-3
+        py-1.5 sm:py-2
+      ">
+        <span className="
+          text-[10px] sm:text-[11px]
+          font-mono text-white/45
+          truncate max-w-[60%]
+        ">
+          {language}
+        </span>
         <button
           type="button"
           onClick={handleCopy}
-          className="flex items-center gap-1.5 text-[11px] text-white/40 hover:text-white/80 transition-colors"
+          className="
+            flex items-center gap-1.5
+            text-[10px] sm:text-[11px]
+            text-white/40 hover:text-white/80
+            active:text-white
+            transition-colors
+            touch-manipulation
+            px-1.5 py-0.5 rounded
+            hover:bg-white/[0.04]
+          "
         >
           <AnimatePresence mode="wait" initial={false}>
             {copied ? (
@@ -277,40 +376,55 @@ function CodeBlock({ language = 'text', code }: { language?: string; code: strin
                 className="flex items-center gap-1.5"
               >
                 <I.Copy />
-                <span>Copy</span>
+                <span className="hidden xs:inline sm:inline">Copy</span>
               </motion.span>
             )}
           </AnimatePresence>
         </button>
       </div>
-      <SyntaxHighlighter
-        language={language}
-        style={tomorrow as any}
-        PreTag="div"
-        customStyle={{
-          margin: 0,
-          padding: '0.875rem 1rem',
-          background: 'transparent',
-          fontSize: '0.85rem',
-          lineHeight: '1.6',
-        }}
-        codeTagProps={{
-          style: {
-            fontFamily:
-              'var(--font-geist-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)',
-          },
-        }}
-      >
-        {code}
-      </SyntaxHighlighter>
+
+      {/* Code — horizontal scroll on mobile */}
+      <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <SyntaxHighlighter
+          language={language}
+          style={tomorrow as any}
+          PreTag="div"
+          customStyle={{
+            margin: 0,
+            padding: isMobile ? '0.75rem 0.875rem' : '0.875rem 1rem',
+            background: 'transparent',
+            fontSize: isMobile ? '0.78rem' : '0.85rem',
+            lineHeight: '1.55',
+            minWidth: 'fit-content',
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily:
+                'var(--font-geist-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)',
+            },
+          }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
     </div>
   )
 }
 
-// ─── Markdown Components ─────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MARKDOWN COMPONENTS — Mobile-responsive typography
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 const markdownComponents: Components = {
   p: ({ children }) => (
-    <p className="mb-4 leading-7 text-white/85 last:mb-0">{children}</p>
+    <p className="
+      mb-3 sm:mb-4
+      leading-6 sm:leading-7
+      text-white/85 last:mb-0
+      break-words
+    ">
+      {children}
+    </p>
   ),
   strong: ({ children }) => (
     <strong className="font-semibold text-white">{children}</strong>
@@ -321,40 +435,99 @@ const markdownComponents: Components = {
       href={href}
       target="_blank"
       rel="noreferrer noopener"
-      className="text-indigo-400 underline decoration-indigo-400/40 underline-offset-2 hover:text-indigo-300 hover:decoration-indigo-300"
+      className="
+        text-indigo-400 underline decoration-indigo-400/40 underline-offset-2
+        hover:text-indigo-300 hover:decoration-indigo-300
+        active:text-indigo-200
+        break-words
+        touch-manipulation
+      "
     >
       {children}
     </a>
   ),
   ul: ({ children }) => (
-    <ul className="mb-4 space-y-1.5 pl-6 [&>li]:list-disc marker:text-white/40">
+    <ul className="
+      mb-3 sm:mb-4
+      space-y-1 sm:space-y-1.5
+      pl-5 sm:pl-6
+      [&>li]:list-disc marker:text-white/40
+    ">
       {children}
     </ul>
   ),
   ol: ({ children }) => (
-    <ol className="mb-4 space-y-1.5 pl-6 [&>li]:list-decimal marker:text-white/40">
+    <ol className="
+      mb-3 sm:mb-4
+      space-y-1 sm:space-y-1.5
+      pl-5 sm:pl-6
+      [&>li]:list-decimal marker:text-white/40
+    ">
       {children}
     </ol>
   ),
-  li: ({ children }) => <li className="leading-7 text-white/85">{children}</li>,
+  li: ({ children }) => (
+    <li className="
+      leading-6 sm:leading-7
+      text-white/85
+      break-words
+    ">
+      {children}
+    </li>
+  ),
   h1: ({ children }) => (
-    <h1 className="mb-4 mt-6 text-2xl font-semibold text-white first:mt-0">{children}</h1>
+    <h1 className="
+      mb-3 sm:mb-4 mt-5 sm:mt-6
+      text-xl sm:text-2xl
+      font-semibold text-white first:mt-0
+      break-words
+    ">
+      {children}
+    </h1>
   ),
   h2: ({ children }) => (
-    <h2 className="mb-3 mt-6 text-xl font-semibold text-white first:mt-0">{children}</h2>
+    <h2 className="
+      mb-2 sm:mb-3 mt-5 sm:mt-6
+      text-lg sm:text-xl
+      font-semibold text-white first:mt-0
+      break-words
+    ">
+      {children}
+    </h2>
   ),
   h3: ({ children }) => (
-    <h3 className="mb-2 mt-5 text-lg font-semibold text-white first:mt-0">{children}</h3>
+    <h3 className="
+      mb-1.5 sm:mb-2 mt-4 sm:mt-5
+      text-base sm:text-lg
+      font-semibold text-white first:mt-0
+      break-words
+    ">
+      {children}
+    </h3>
   ),
-  hr: () => <hr className="my-6 border-white/[0.08]" />,
+  hr: () => <hr className="my-4 sm:my-6 border-white/[0.08]" />,
   blockquote: ({ children }) => (
-    <blockquote className="my-4 border-l-2 border-white/[0.15] pl-4 italic text-white/70">
+    <blockquote className="
+      my-3 sm:my-4
+      border-l-2 border-white/[0.15]
+      pl-3 sm:pl-4
+      italic text-white/70
+    ">
       {children}
     </blockquote>
   ),
   table: ({ children }) => (
-    <div className="my-4 overflow-x-auto rounded-lg border border-white/[0.08]">
-      <table className="min-w-full text-sm">{children}</table>
+    <div
+      className="
+        my-3 sm:my-4
+        overflow-x-auto
+        rounded-lg
+        border border-white/[0.08]
+        -mx-1 sm:mx-0
+      "
+      style={{ WebkitOverflowScrolling: 'touch' }}
+    >
+      <table className="min-w-full text-xs sm:text-sm">{children}</table>
     </div>
   ),
   thead: ({ children }) => (
@@ -365,12 +538,26 @@ const markdownComponents: Components = {
   ),
   tr: ({ children }) => <tr>{children}</tr>,
   th: ({ children }) => (
-    <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-white/50">
+    <th className="
+      px-3 sm:px-4
+      py-2 sm:py-2.5
+      text-left
+      text-[10px] sm:text-xs
+      font-semibold uppercase tracking-wide text-white/50
+      whitespace-nowrap
+    ">
       {children}
     </th>
   ),
   td: ({ children }) => (
-    <td className="px-4 py-2.5 text-sm text-white/75">{children}</td>
+    <td className="
+      px-3 sm:px-4
+      py-2 sm:py-2.5
+      text-xs sm:text-sm
+      text-white/75
+    ">
+      {children}
+    </td>
   ),
   pre: ({ children }) => <>{children}</>,
   code: ({ className, children }) => {
@@ -381,16 +568,26 @@ const markdownComponents: Components = {
       return <CodeBlock language={match?.[1] ?? 'text'} code={raw} />
     }
     return (
-      <code className="rounded-md bg-white/[0.08] px-1.5 py-0.5 font-mono text-[0.875em] text-indigo-300">
+      <code className="
+        rounded-md
+        bg-white/[0.08]
+        px-1 sm:px-1.5
+        py-0.5
+        font-mono
+        text-[0.82em] sm:text-[0.875em]
+        text-indigo-300
+        break-all
+      ">
         {children}
       </code>
     )
   },
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 export const AIMessage = memo(function AIMessage({
   content,
   model,
@@ -405,6 +602,7 @@ export const AIMessage = memo(function AIMessage({
 }: AIMessageProps) {
   const [copied, setCopied] = useState(false)
   const [reaction, setReaction] = useState<'up' | 'down' | null>(null)
+  const isTouch = useIsTouchDevice()
 
   const displayModel = normalizeModelName(model)
 
@@ -419,11 +617,14 @@ export const AIMessage = memo(function AIMessage({
     }
   }, [content, onCopy])
 
-  const handleReaction = useCallback((r: 'up' | 'down') => {
-    const newReaction = reaction === r ? null : r
-    setReaction(newReaction)
-    if (newReaction) onFeedback?.(newReaction)
-  }, [reaction, onFeedback])
+  const handleReaction = useCallback(
+    (r: 'up' | 'down') => {
+      const newReaction = reaction === r ? null : r
+      setReaction(newReaction)
+      if (newReaction) onFeedback?.(newReaction)
+    },
+    [reaction, onFeedback]
+  )
 
   return (
     <motion.article
@@ -432,19 +633,21 @@ export const AIMessage = memo(function AIMessage({
       transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
       className={cn('relative group/msg', className)}
     >
-      {/* ─── Glow Effect ────────────────────────────────────── */}
+      {/* ─── Glow Effect (latest only, subtle on mobile) ─────── */}
       {isLatest && !isError && (
         <>
-          <div className="absolute -inset-x-4 -inset-y-2 pointer-events-none opacity-40">
-            <div 
-              className="absolute -top-12 left-1/2 -translate-x-1/2 w-[400px] h-[150px] rounded-full"
+          <div className="absolute -inset-x-2 sm:-inset-x-4 -inset-y-2 pointer-events-none opacity-30 sm:opacity-40">
+            <div
+              className="absolute -top-8 sm:-top-12 left-1/2 -translate-x-1/2 rounded-full"
               style={{
+                width: 'min(400px, 85vw)',
+                height: 'min(150px, 30vw)',
                 background: 'radial-gradient(ellipse, rgba(99,102,241,0.08), transparent 70%)',
                 filter: 'blur(40px)',
               }}
             />
-            <div 
-              className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-[300px] h-[100px] rounded-full"
+            <div
+              className="hidden sm:block absolute -bottom-8 left-1/2 -translate-x-1/2 w-[300px] h-[100px] rounded-full"
               style={{
                 background: 'radial-gradient(ellipse, rgba(139,92,246,0.06), transparent 70%)',
                 filter: 'blur(40px)',
@@ -456,16 +659,22 @@ export const AIMessage = memo(function AIMessage({
             initial={{ opacity: 0, scaleY: 0 }}
             animate={{ opacity: 1, scaleY: 1 }}
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-            className="absolute left-0 top-4 bottom-4 w-[2px] rounded-full bg-gradient-to-b from-[#6366f1]/50 via-[#8b5cf6]/40 to-transparent origin-top"
+            className="absolute left-0 top-3 sm:top-4 bottom-3 sm:bottom-4 w-[2px] rounded-full bg-gradient-to-b from-[#6366f1]/50 via-[#8b5cf6]/40 to-transparent origin-top"
           />
         </>
       )}
 
-      <div className="flex gap-4 px-4 py-5 sm:px-6">
+      {/* Container — tighter mobile spacing */}
+      <div className="
+        flex gap-2.5 sm:gap-4
+        px-3 sm:px-4 md:px-6
+        py-3.5 sm:py-5
+      ">
         {/* ── Avatar ────────────────────────────────────────── */}
         <div className="flex-shrink-0 pt-0.5">
           <div className={cn(
-            'relative flex h-7 w-7 items-center justify-center rounded-full border',
+            'relative flex items-center justify-center rounded-full border',
+            'h-6 w-6 sm:h-7 sm:w-7',
             isError
               ? 'border-red-500/25 bg-red-500/10'
               : 'border-indigo-500/20 bg-gradient-to-br from-indigo-500/15 to-violet-500/15'
@@ -477,7 +686,7 @@ export const AIMessage = memo(function AIMessage({
                 transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
               />
             )}
-            <div className="scale-[0.5]">
+            <div className="scale-[0.45] sm:scale-[0.5]">
               <PulseRobot size="sm" />
             </div>
           </div>
@@ -486,12 +695,12 @@ export const AIMessage = memo(function AIMessage({
         {/* ─── Content Column ────────────────────────────────── */}
         <div className="min-w-0 flex-1">
           {/* Header */}
-          <div className="mb-1.5 flex items-center gap-2">
-            <span className="text-sm font-semibold text-white/90">
+          <div className="mb-1 sm:mb-1.5 flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <span className="text-[13px] sm:text-sm font-semibold text-white/90">
               {displayModel}
             </span>
             {isStreaming && !isError && (
-              <span className="flex items-center gap-1.5 text-[11px]">
+              <span className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-[11px]">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-60" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-indigo-400" />
@@ -500,17 +709,22 @@ export const AIMessage = memo(function AIMessage({
               </span>
             )}
             {isError && (
-              <span className="flex items-center gap-1 rounded-full bg-red-500/10 border border-red-500/20 px-2 py-0.5 text-[10px] font-semibold text-red-400">
+              <span className="
+                flex items-center gap-1
+                rounded-full bg-red-500/10 border border-red-500/20
+                px-1.5 sm:px-2 py-0.5
+                text-[9px] sm:text-[10px] font-semibold text-red-400
+              ">
                 <I.Alert />
                 Error
               </span>
             )}
           </div>
 
-          {/* Body */}
-          <div className="text-[15px]">
+          {/* Body — smaller text on mobile */}
+          <div className="text-[14px] sm:text-[15px]">
             {isError ? (
-              <p className="text-red-300/85 leading-7">{content}</p>
+              <p className="text-red-300/85 leading-6 sm:leading-7">{content}</p>
             ) : (
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {content}
@@ -518,94 +732,139 @@ export const AIMessage = memo(function AIMessage({
             )}
           </div>
 
-          {/* ─── Action Bar ────────────────────────────────────── */}
+          {/* ─── Action Bar ─────────────────────────────────────
+              - Desktop: hidden until hover
+              - Mobile/Touch: always visible
+              - Horizontally scrollable if overflows
+              ──────────────────────────────────────────────── */}
           {!isStreaming && !isError && content.length > 0 && (
-            <div className="mt-3 flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
-              <button
-                onClick={handleCopy}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-white/40 hover:bg-white/[0.06] hover:text-white/80 transition-colors"
-                aria-label={copied ? 'Copied' : 'Copy message'}
-                title={copied ? 'Copied' : 'Copy'}
-              >
-                <AnimatePresence mode="wait" initial={false}>
-                  {copied ? (
-                    <motion.span
-                      key="check"
-                      initial={{ scale: 0.6, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.6, opacity: 0 }}
-                      className="text-emerald-400"
-                    >
-                      <I.Check />
-                    </motion.span>
-                  ) : (
-                    <motion.span
-                      key="copy"
-                      initial={{ scale: 0.6, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.6, opacity: 0 }}
-                    >
-                      <I.Copy />
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </button>
-
-              {onRegenerate && (
+            <div className={cn(
+              'mt-2.5 sm:mt-3',
+              '-mx-1 sm:mx-0 px-1 sm:px-0',
+              'overflow-x-auto sm:overflow-visible',
+              'scrollbar-none',
+              // Show on touch devices, hover-reveal on desktop
+              isTouch
+                ? 'opacity-100'
+                : 'opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity duration-200'
+            )}
+            style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              <div className="flex items-center gap-0.5 sm:gap-0.5 w-max sm:w-auto">
+                {/* Copy */}
                 <button
-                  onClick={onRegenerate}
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-white/40 hover:bg-white/[0.06] hover:text-white/80 transition-colors"
-                  aria-label="Regenerate response"
-                  title="Regenerate"
+                  onClick={handleCopy}
+                  className="
+                    flex items-center justify-center rounded-md
+                    h-8 w-8 sm:h-7 sm:w-7
+                    text-white/40 hover:bg-white/[0.06] hover:text-white/80
+                    active:bg-white/[0.1]
+                    transition-colors touch-manipulation
+                  "
+                  aria-label={copied ? 'Copied' : 'Copy message'}
+                  title={copied ? 'Copied' : 'Copy'}
                 >
-                  <I.Regenerate />
+                  <AnimatePresence mode="wait" initial={false}>
+                    {copied ? (
+                      <motion.span
+                        key="check"
+                        initial={{ scale: 0.6, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.6, opacity: 0 }}
+                        className="text-emerald-400"
+                      >
+                        <I.Check />
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="copy"
+                        initial={{ scale: 0.6, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.6, opacity: 0 }}
+                      >
+                        <I.Copy />
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </button>
-              )}
 
-              <button
-                onClick={() => handleReaction('up')}
-                className={cn(
-                  'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
-                  reaction === 'up'
-                    ? 'text-emerald-400 bg-emerald-400/10'
-                    : 'text-white/40 hover:bg-white/[0.06] hover:text-white/80'
+                {/* Regenerate */}
+                {onRegenerate && (
+                  <button
+                    onClick={onRegenerate}
+                    className="
+                      flex items-center justify-center rounded-md
+                      h-8 w-8 sm:h-7 sm:w-7
+                      text-white/40 hover:bg-white/[0.06] hover:text-white/80
+                      active:bg-white/[0.1]
+                      transition-colors touch-manipulation
+                    "
+                    aria-label="Regenerate response"
+                    title="Regenerate"
+                  >
+                    <I.Regenerate />
+                  </button>
                 )}
-                aria-label="Good response"
-                title="Good response"
-              >
-                <I.ThumbUp />
-              </button>
 
-              <button
-                onClick={() => handleReaction('down')}
-                className={cn(
-                  'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
-                  reaction === 'down'
-                    ? 'text-red-400 bg-red-400/10'
-                    : 'text-white/40 hover:bg-white/[0.06] hover:text-white/80'
+                {/* Thumbs up */}
+                <button
+                  onClick={() => handleReaction('up')}
+                  className={cn(
+                    'flex items-center justify-center rounded-md',
+                    'h-8 w-8 sm:h-7 sm:w-7',
+                    'transition-colors touch-manipulation active:bg-white/[0.1]',
+                    reaction === 'up'
+                      ? 'text-emerald-400 bg-emerald-400/10'
+                      : 'text-white/40 hover:bg-white/[0.06] hover:text-white/80'
+                  )}
+                  aria-label="Good response"
+                  title="Good response"
+                >
+                  <I.ThumbUp />
+                </button>
+
+                {/* Thumbs down */}
+                <button
+                  onClick={() => handleReaction('down')}
+                  className={cn(
+                    'flex items-center justify-center rounded-md',
+                    'h-8 w-8 sm:h-7 sm:w-7',
+                    'transition-colors touch-manipulation active:bg-white/[0.1]',
+                    reaction === 'down'
+                      ? 'text-red-400 bg-red-400/10'
+                      : 'text-white/40 hover:bg-white/[0.06] hover:text-white/80'
+                  )}
+                  aria-label="Bad response"
+                  title="Bad response"
+                >
+                  <I.ThumbDown />
+                </button>
+
+                {/* TTS */}
+                {content.length > 20 && (
+                  <>
+                    <span className="w-px h-4 bg-white/[0.06] mx-0.5 flex-shrink-0" />
+                    <TTSButton text={content} />
+                  </>
                 )}
-                aria-label="Bad response"
-                title="Bad response"
-              >
-                <I.ThumbDown />
-              </button>
 
-              {/* TTS Button */}
-              {content.length > 20 && (
-                <>
-                  <span className="w-px h-4 bg-white/[0.06] mx-0.5" />
-                  <TTSButton text={content} />
-                </>
-              )}
+                {/* Timestamp — desktop only (visible), stays hidden on mobile */}
+                {timestamp && (
+                  <>
+                    <span className="hidden sm:inline-block w-px h-4 bg-white/[0.06] mx-0.5" />
+                    <span className="hidden sm:inline-block text-[11px] text-white/25 pl-0.5">
+                      {formatTimestamp(timestamp)}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
-              {timestamp && (
-                <>
-                  <span className="w-px h-4 bg-white/[0.06] mx-0.5" />
-                  <span className="text-[11px] text-white/25">
-                    {formatTimestamp(timestamp)}
-                  </span>
-                </>
-              )}
+          {/* Mobile-only timestamp — separate row for space efficiency */}
+          {timestamp && !isStreaming && !isError && (
+            <div className="sm:hidden mt-1.5 text-[10px] font-mono text-white/20">
+              {formatTimestamp(timestamp)}
             </div>
           )}
         </div>

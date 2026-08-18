@@ -15,7 +15,10 @@ import { useToast } from '@/components/UI/Toast'
 import { memorySystem } from '@/lib/ai/memory'
 import type { Conversation } from '@/components/Sidebar/ConversationItem'
 
-// ─── Types ───────────────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════════
+   TYPES
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -37,9 +40,13 @@ interface ChatLayoutProps {
   userName?: string
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 const DEFAULT_MODEL = 'gpt-4o'
 const MODEL_LABEL = 'Pulse AI'
+const MOBILE_BREAKPOINT = 1024 // lg
 
 const STORAGE_KEYS = {
   CONVERSATIONS: 'pulse_conversations',
@@ -50,13 +57,16 @@ const STORAGE_KEYS = {
 } as const
 
 const SUGGESTIONS = [
-  { label: 'Explain a concept',  prompt: 'Explain how React Server Components work' },
-  { label: 'Write code',         prompt: 'Write a TypeScript utility to deep-merge objects' },
-  { label: 'Analyze data',       prompt: 'What are the key trends in AI adoption for 2024?' },
-  { label: 'Creative writing',   prompt: 'Write a short story about a robot learning to dream' },
+  { label: 'Explain a concept', prompt: 'Explain how React Server Components work', icon: '💡' },
+  { label: 'Write code',        prompt: 'Write a TypeScript utility to deep-merge objects', icon: '⚡' },
+  { label: 'Analyze data',      prompt: 'What are the key trends in AI adoption for 2024?', icon: '📊' },
+  { label: 'Creative writing',  prompt: 'Write a short story about a robot learning to dream', icon: '✨' },
 ]
 
-// ─── Storage Helpers ─────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════════
+   STORAGE HELPERS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 function loadFromStorage<T>(key: string, defaultValue: T): T {
   if (typeof window === 'undefined') return defaultValue
   try {
@@ -92,7 +102,10 @@ function removeFromStorage(key: string) {
   catch (error) { console.error(`[Storage] Failed to remove ${key}:`, error) }
 }
 
-// ─── Utilities ───────────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 function generateTitle(content: string): string {
   const clean = content.trim()
   if (!clean) return 'New Chat'
@@ -109,7 +122,61 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.trim().split(/\s+/).length * 1.35)
 }
 
-// ─── Mobile Backdrop ─────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════════
+   HOOKS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/** Reactive viewport detection with SSR safety */
+function useIsMobile(breakpoint = MOBILE_BREAKPOINT): boolean {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const check = () => setIsMobile(window.innerWidth < breakpoint)
+    check()
+
+    const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+
+    if (mql.addEventListener) {
+      mql.addEventListener('change', handler)
+      return () => mql.removeEventListener('change', handler)
+    } else {
+      // Safari fallback
+      mql.addListener(handler)
+      return () => mql.removeListener(handler)
+    }
+  }, [breakpoint])
+
+  return isMobile
+}
+
+/** Get real viewport height (accounts for mobile browser chrome) */
+function useDynamicViewportHeight() {
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const setVH = () => {
+      const vh = window.innerHeight * 0.01
+      document.documentElement.style.setProperty('--vh', `${vh}px`)
+    }
+
+    setVH()
+    window.addEventListener('resize', setVH)
+    window.addEventListener('orientationchange', setVH)
+
+    return () => {
+      window.removeEventListener('resize', setVH)
+      window.removeEventListener('orientationchange', setVH)
+    }
+  }, [])
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MOBILE BACKDROP
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 function MobileBackdrop({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   return (
     <AnimatePresence>
@@ -120,7 +187,7 @@ function MobileBackdrop({ visible, onClose }: { visible: boolean; onClose: () =>
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           onClick={onClose}
-          className="fixed inset-0 z-20 bg-black/60 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-30 bg-black/70 lg:hidden"
           aria-hidden="true"
         />
       )}
@@ -128,9 +195,20 @@ function MobileBackdrop({ visible, onClose }: { visible: boolean; onClose: () =>
   )
 }
 
-// ─── Empty State ─────────────────────────────────────────────────────────────────
-function EmptyState({ onSuggestion, userName }: { onSuggestion: (prompt: string) => void; userName?: string }) {
-  const greeting = userName ? `How can I help you today, ${userName}?` : 'How can I help you today?'
+/* ═══════════════════════════════════════════════════════════════════════════════
+   EMPTY STATE — Mobile-first responsive
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+function EmptyState({
+  onSuggestion,
+  userName,
+}: {
+  onSuggestion: (prompt: string) => void
+  userName?: string
+}) {
+  const greeting = userName
+    ? `How can I help, ${userName}?`
+    : 'How can I help you today?'
 
   return (
     <motion.div
@@ -138,13 +216,21 @@ function EmptyState({ onSuggestion, userName }: { onSuggestion: (prompt: string)
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="flex flex-col items-center justify-center flex-1 px-6 pb-12"
+      className="flex flex-col items-center justify-center flex-1 px-4 sm:px-6 pb-6 sm:pb-12 pt-8"
     >
+      {/* Headline — scales from mobile → desktop */}
       <motion.h1
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        className="text-3xl sm:text-4xl font-semibold text-white/85 tracking-tight text-center mb-2"
+        className="
+          text-[22px] leading-tight
+          sm:text-3xl
+          md:text-4xl
+          font-semibold text-white/85 tracking-tight text-center
+          mb-2 sm:mb-3
+          max-w-[280px] sm:max-w-none
+        "
       >
         {greeting}
       </motion.h1>
@@ -153,12 +239,24 @@ function EmptyState({ onSuggestion, userName }: { onSuggestion: (prompt: string)
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        className="text-sm text-white/35 mb-10 text-center"
+        className="
+          text-[12px] sm:text-sm
+          text-white/35
+          mb-6 sm:mb-10
+          text-center
+          max-w-[280px] sm:max-w-none
+          leading-relaxed
+        "
       >
         Ask me anything — I can code, write, analyze, and more.
       </motion.p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-2xl">
+      {/* Suggestion grid — single column on mobile, 2×2 on tablet+ */}
+      <div className="
+        grid grid-cols-1 sm:grid-cols-2
+        gap-2 sm:gap-2.5
+        w-full max-w-[420px] sm:max-w-2xl
+      ">
         {SUGGESTIONS.map((s, i) => (
           <motion.button
             key={s.label}
@@ -166,14 +264,37 @@ function EmptyState({ onSuggestion, userName }: { onSuggestion: (prompt: string)
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 + i * 0.05, duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
             onClick={() => onSuggestion(s.prompt)}
-            className="group flex flex-col items-start gap-1 px-4 py-3.5 rounded-2xl text-left bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.14] transition-all duration-150"
+            className="
+              group flex items-start gap-2.5 sm:gap-3
+              px-3.5 sm:px-4 py-3 sm:py-3.5
+              rounded-xl sm:rounded-2xl
+              text-left
+              bg-white/[0.02] hover:bg-white/[0.05] active:bg-white/[0.07]
+              border border-white/[0.06] hover:border-white/[0.14]
+              transition-all duration-150
+              touch-manipulation
+            "
           >
-            <span className="text-sm font-medium text-white/80 group-hover:text-white/95 transition-colors">
-              {s.label}
+            <span className="text-base sm:text-lg flex-shrink-0 mt-0.5" aria-hidden="true">
+              {s.icon}
             </span>
-            <span className="text-[13px] text-white/40 group-hover:text-white/55 transition-colors leading-snug line-clamp-2">
-              {s.prompt}
-            </span>
+            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+              <span className="
+                text-[13px] sm:text-sm
+                font-medium text-white/80 group-hover:text-white/95
+                transition-colors
+              ">
+                {s.label}
+              </span>
+              <span className="
+                text-[11px] sm:text-[13px]
+                text-white/40 group-hover:text-white/55
+                transition-colors
+                leading-snug line-clamp-2
+              ">
+                {s.prompt}
+              </span>
+            </div>
           </motion.button>
         ))}
       </div>
@@ -181,22 +302,25 @@ function EmptyState({ onSuggestion, userName }: { onSuggestion: (prompt: string)
   )
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════════
-// MAIN LAYOUT
-// ═══════════════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MAIN LAYOUT
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 export function ChatLayout({
   className,
   initialTitle = 'New Chat',
   defaultModel = DEFAULT_MODEL,
   userName: propUserName,
 }: ChatLayoutProps) {
-  // ─── SSR-safe mounting + debug helpers ────────────────────
   const [mounted, setMounted] = useState(false)
+  const isMobile = useIsMobile()
+
+  // Fix mobile viewport height issues (iOS Safari, mobile Chrome)
+  useDynamicViewportHeight()
 
   useEffect(() => {
     setMounted(true)
 
-    // Expose memory system for debugging in dev
     if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
       ;(window as any).memory = memorySystem
       ;(window as any).debugMemory = () => {
@@ -219,21 +343,49 @@ export function ChatLayout({
     }
   }, [])
 
-  // ─── Sidebar state ───────────────────────────────────────
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true)
+  /* ─── Sidebar state — mobile-aware defaults ────────────────────── */
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const saved = loadFromStorage<boolean | null>(STORAGE_KEYS.SIDEBAR_OPEN, null)
-    if (saved !== null) setIsSidebarOpen(saved)
-    else setIsSidebarOpen(window.innerWidth >= 1024)
+    if (saved !== null && window.innerWidth >= MOBILE_BREAKPOINT) {
+      setIsSidebarOpen(saved)
+    } else {
+      // Mobile: always closed on mount, Desktop: open by default
+      setIsSidebarOpen(window.innerWidth >= MOBILE_BREAKPOINT)
+    }
   }, [])
 
+  // Only save sidebar state on desktop (mobile always starts closed)
   useEffect(() => {
-    if (mounted) saveToStorage(STORAGE_KEYS.SIDEBAR_OPEN, isSidebarOpen)
-  }, [isSidebarOpen, mounted])
+    if (mounted && !isMobile) saveToStorage(STORAGE_KEYS.SIDEBAR_OPEN, isSidebarOpen)
+  }, [isSidebarOpen, mounted, isMobile])
 
-  // ─── Conversations state ─────────────────────────────────
+  // Auto-close sidebar when switching to mobile viewport
+  useEffect(() => {
+    if (mounted && isMobile && isSidebarOpen) {
+      setIsSidebarOpen(false)
+    }
+    // Auto-open when switching to desktop (respect stored preference)
+    if (mounted && !isMobile) {
+      const saved = loadFromStorage<boolean | null>(STORAGE_KEYS.SIDEBAR_OPEN, null)
+      if (saved === null || saved === true) setIsSidebarOpen(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, mounted])
+
+  // Lock body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (isMobile && isSidebarOpen) {
+      const originalStyle = window.getComputedStyle(document.body).overflow
+      document.body.style.overflow = 'hidden'
+      return () => { document.body.style.overflow = originalStyle }
+    }
+  }, [isMobile, isSidebarOpen])
+
+  /* ─── Conversations state ────────────────────────────────────────── */
   const [conversations, setConversations] = useState<Conversation[]>(() =>
     loadFromStorage(STORAGE_KEYS.CONVERSATIONS, [])
   )
@@ -254,7 +406,7 @@ export function ChatLayout({
     loadFromStorage(STORAGE_KEYS.MODEL, defaultModel)
   )
 
-  // ─── Auto-derive userName from memory if not provided ────
+  /* ─── Auto-derive userName from memory ───────────────────────────── */
   const [derivedUserName, setDerivedUserName] = useState<string | undefined>(propUserName)
 
   useEffect(() => {
@@ -264,12 +416,10 @@ export function ChatLayout({
     }
     if (!mounted) return
 
-    // Check memory for user's name
     const identityMems = memorySystem.getMemoriesByType('identity')
     const nameMem = identityMems.find((m) => m.predicate === 'named')
     if (nameMem?.object) setDerivedUserName(nameMem.object)
 
-    // Subscribe to memory updates for live name detection
     return memorySystem.subscribe(() => {
       if (propUserName) return
       const idMems = memorySystem.getMemoriesByType('identity')
@@ -287,7 +437,7 @@ export function ChatLayout({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const streamingMessageIdRef = useRef<string | null>(null)
 
-  // ─── Persist to storage ──────────────────────────────────
+  /* ─── Persist to storage ─────────────────────────────────────────── */
   useEffect(() => {
     if (mounted) saveToStorage(STORAGE_KEYS.CONVERSATIONS, conversations)
   }, [conversations, mounted])
@@ -308,7 +458,7 @@ export function ChatLayout({
     if (mounted) saveToStorage(STORAGE_KEYS.MODEL, currentModel)
   }, [currentModel, mounted])
 
-  // ─── Derived title ───────────────────────────────────────
+  /* ─── Derived title ──────────────────────────────────────────────── */
   const derivedTitle = useMemo(() => {
     if (!activeConversationId) return initialTitle
     const conv = conversations.find((c) => c.id === activeConversationId)
@@ -319,7 +469,7 @@ export function ChatLayout({
     setConversationTitle(derivedTitle)
   }, [derivedTitle])
 
-  // ─── Cleanup ─────────────────────────────────────────────
+  /* ─── Cleanup ────────────────────────────────────────────────────── */
   useEffect(() => {
     return () => {
       timeoutsRef.current.forEach(clearTimeout)
@@ -327,7 +477,7 @@ export function ChatLayout({
     }
   }, [])
 
-  // ─── Auto-scroll ─────────────────────────────────────────
+  /* ─── Auto-scroll ────────────────────────────────────────────────── */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [messages.length, streamedContent])
@@ -340,7 +490,7 @@ export function ChatLayout({
 
   const isDisabled = assistantState !== 'idle' || isStreaming
 
-  // ─── Conversation management ─────────────────────────────
+  /* ─── Conversation management ────────────────────────────────────── */
   const createConversation = useCallback((firstMessage?: string): string => {
     const id = `conv-${Date.now()}`
     const title = firstMessage ? generateTitle(firstMessage) : 'New Chat'
@@ -390,12 +540,13 @@ export function ChatLayout({
       const savedMessages = loadFromStorage<Message[]>(`${STORAGE_KEYS.MESSAGES}${id}`, [])
       setMessages(savedMessages)
 
-      if (window.innerWidth < 1024) setIsSidebarOpen(false)
+      // Always close sidebar on mobile after selection
+      if (isMobile) setIsSidebarOpen(false)
     },
-    [conversations]
+    [conversations, isMobile]
   )
 
-  // ─── Send message ────────────────────────────────────────
+  /* ─── Send message ───────────────────────────────────────────────── */
   const handleSendMessage = useCallback(
     async (content: string) => {
       const trimmed = content.trim()
@@ -406,7 +557,6 @@ export function ChatLayout({
 
       updateConversation(conversationId, trimmed)
 
-      // ─── LEARN FROM USER MESSAGE (long-term memory) ─────
       try {
         const extracted = memorySystem.processMessage(trimmed, conversationId)
         if (extracted.length > 0) {
@@ -446,12 +596,10 @@ export function ChatLayout({
       let fullResponse = ''
 
       try {
-        // ─── SHORT-TERM MEMORY (this conversation) ────────
         const historyForAPI: StreamMessage[] = messages
           .filter((m) => !m.isError && m.content.trim().length > 0)
           .map((m) => ({ role: m.role, content: m.content }))
 
-        // ─── LONG-TERM MEMORY (across all conversations) ──
         let memoryContext = ''
         try {
           const generalContext = memorySystem.getContextualPrompt({ verbose: false })
@@ -539,7 +687,7 @@ export function ChatLayout({
     ]
   )
 
-  // ─── Actions ─────────────────────────────────────────────
+  /* ─── Actions ────────────────────────────────────────────────────── */
   const handleNewChat = useCallback(() => {
     timeoutsRef.current.forEach(clearTimeout)
     timeoutsRef.current = []
@@ -550,8 +698,8 @@ export function ChatLayout({
     setConversationTitle('New Chat')
     setAssistantState('idle')
 
-    if (window.innerWidth < 1024) setIsSidebarOpen(false)
-  }, [])
+    if (isMobile) setIsSidebarOpen(false)
+  }, [isMobile])
 
   const handleClear = useCallback(() => {
     timeoutsRef.current.forEach(clearTimeout)
@@ -613,13 +761,29 @@ export function ChatLayout({
       return
     }
     const url = `${window.location.origin}/chat/${activeConversationId}`
+
+    // Prefer native share API on mobile
+    if (isMobile && navigator.share) {
+      try {
+        await navigator.share({
+          title: conversationTitle,
+          text: `Check out this conversation on Pulse AI`,
+          url,
+        })
+        return
+      } catch (err) {
+        // User cancelled or error — fall through to clipboard
+        if ((err as Error).name === 'AbortError') return
+      }
+    }
+
     try {
       await navigator.clipboard.writeText(url)
       addToast({ title: 'Share link copied', type: 'success' })
     } catch {
       addToast({ title: 'Failed to copy link', type: 'error' })
     }
-  }, [messages.length, activeConversationId, addToast])
+  }, [messages.length, activeConversationId, conversationTitle, addToast, isMobile])
 
   const handleSearch = useCallback(() => {
     addToast({ title: 'Search coming soon', type: 'info' })
@@ -628,10 +792,13 @@ export function ChatLayout({
   const handleToggleSidebar = useCallback(() => setIsSidebarOpen((v) => !v), [])
   const closeSidebar = useCallback(() => setIsSidebarOpen(false), [])
 
-  // ─── SSR guard ───────────────────────────────────────────
+  /* ─── SSR guard ──────────────────────────────────────────────────── */
   if (!mounted) {
     return (
-      <div className={cn('flex h-[100dvh] overflow-hidden bg-[#0a0a0f]', className)}>
+      <div
+        className={cn('flex overflow-hidden bg-[#0a0a0f]', className)}
+        style={{ height: '100dvh' }}
+      >
         <div className="flex-1" />
       </div>
     )
@@ -640,9 +807,21 @@ export function ChatLayout({
   const showEmptyState = messages.length === 0 && !isStreaming && assistantState === 'idle'
 
   return (
-    <div className={cn('flex h-[100dvh] overflow-hidden bg-[#0a0a0f]', className)}>
-      <MobileBackdrop visible={isSidebarOpen} onClose={closeSidebar} />
+    <div
+      className={cn(
+        'flex overflow-hidden bg-[#0a0a0f] w-full',
+        className
+      )}
+      style={{
+        // Use 100dvh with fallback to calc(var(--vh)) for older browsers
+        height: '100dvh',
+        minHeight: 'calc(var(--vh, 1vh) * 100)',
+      }}
+    >
+      {/* Mobile backdrop */}
+      <MobileBackdrop visible={isSidebarOpen && isMobile} onClose={closeSidebar} />
 
+      {/* Sidebar — off-canvas on mobile, static on desktop */}
       <Sidebar
         isOpen={isSidebarOpen}
         onToggle={handleToggleSidebar}
@@ -654,29 +833,47 @@ export function ChatLayout({
         onConversationsUpdate={setConversations}
       />
 
-      <div className="relative flex flex-col flex-1 min-w-0 min-h-0">
-        {/* Glow effects */}
+      {/* Main chat area */}
+      <div className="relative flex flex-col flex-1 min-w-0 min-h-0 w-full">
+        {/* Ambient glow effects — scaled down on mobile for performance */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {/* Top glow — smaller on mobile */}
           <div
-            className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full opacity-40"
-            style={{ background: 'radial-gradient(ellipse, rgba(99,102,241,0.12), transparent 70%)', filter: 'blur(60px)' }}
+            className="absolute -top-24 sm:-top-32 left-1/2 -translate-x-1/2 rounded-full opacity-40"
+            style={{
+              width: 'min(600px, 90vw)',
+              height: 'min(300px, 45vw)',
+              background: 'radial-gradient(ellipse, rgba(99,102,241,0.12), transparent 70%)',
+              filter: 'blur(60px)',
+            }}
           />
+          {/* Bottom glow */}
           <div
-            className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-[500px] h-[250px] rounded-full opacity-30"
-            style={{ background: 'radial-gradient(ellipse, rgba(139,92,246,0.10), transparent 70%)', filter: 'blur(60px)' }}
+            className="absolute -bottom-24 sm:-bottom-32 left-1/2 -translate-x-1/2 rounded-full opacity-30"
+            style={{
+              width: 'min(500px, 80vw)',
+              height: 'min(250px, 40vw)',
+              background: 'radial-gradient(ellipse, rgba(139,92,246,0.10), transparent 70%)',
+              filter: 'blur(60px)',
+            }}
           />
+
+          {/* Side glows — hidden on mobile to save GPU */}
           <div
-            className="absolute top-1/2 -translate-y-1/2 -left-32 w-[200px] h-[400px] rounded-full opacity-20"
+            className="hidden md:block absolute top-1/2 -translate-y-1/2 -left-32 w-[200px] h-[400px] rounded-full opacity-20"
             style={{ background: 'radial-gradient(ellipse, rgba(99,102,241,0.06), transparent 70%)', filter: 'blur(60px)' }}
           />
           <div
-            className="absolute top-1/2 -translate-y-1/2 -right-32 w-[200px] h-[400px] rounded-full opacity-20"
+            className="hidden md:block absolute top-1/2 -translate-y-1/2 -right-32 w-[200px] h-[400px] rounded-full opacity-20"
             style={{ background: 'radial-gradient(ellipse, rgba(139,92,246,0.06), transparent 70%)', filter: 'blur(60px)' }}
           />
+
+          {/* Accent lines */}
           <div className="absolute top-0 left-[10%] right-[10%] h-px bg-gradient-to-r from-transparent via-indigo-500/10 to-transparent" />
           <div className="absolute bottom-0 left-[10%] right-[10%] h-px bg-gradient-to-r from-transparent via-violet-500/10 to-transparent" />
         </div>
 
+        {/* Header */}
         <ChatHeader
           onToggleSidebar={handleToggleSidebar}
           isSidebarOpen={isSidebarOpen}
@@ -692,6 +889,7 @@ export function ChatLayout({
           onNewChat={handleNewChat}
         />
 
+        {/* Messages area — flex-1 with proper overflow */}
         <div className="relative flex flex-col flex-1 min-h-0 overflow-hidden">
           <AnimatePresence mode="wait">
             {showEmptyState ? (
@@ -702,23 +900,49 @@ export function ChatLayout({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.2 }}
-                className="flex flex-col flex-1 min-h-0 overflow-y-auto"
+                className="
+                  flex flex-col flex-1 min-h-0
+                  overflow-y-auto overflow-x-hidden
+                  overscroll-behavior-contain
+                "
+                style={{
+                  WebkitOverflowScrolling: 'touch',
+                }}
               >
                 <ChatMessages
                   messages={messages}
                   isTyping={assistantState !== 'idle' || isStreaming}
                 />
-                <div ref={messagesEndRef} className="h-4 flex-shrink-0" />
+                <div ref={messagesEndRef} className="h-2 sm:h-4 flex-shrink-0" />
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        <div className="relative flex-shrink-0 bg-[#0a0a0f] pt-2 pb-3 sm:pb-4">
+        {/* Input area — mobile-safe padding for iOS home indicator */}
+        <div
+          className="
+            relative flex-shrink-0 bg-[#0a0a0f]
+            pt-1.5 sm:pt-2
+            pb-2 sm:pb-4
+            px-safe
+          "
+          style={{
+            paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0.5rem))',
+          }}
+        >
           <MessageInput onSendMessage={handleSendMessage} disabled={isDisabled} />
 
-          <p className="text-center text-[11px] text-white/25 mt-2.5 px-4">
-            Pulse can make mistakes — verify important information.
+          <p className="
+            text-center
+            text-[10px] sm:text-[11px]
+            text-white/25
+            mt-1.5 sm:mt-2.5
+            px-4
+            hidden xs:block sm:block
+          ">
+            <span className="hidden sm:inline">Pulse can make mistakes — verify important information.</span>
+            <span className="sm:hidden">Pulse can make mistakes.</span>
           </p>
         </div>
       </div>
