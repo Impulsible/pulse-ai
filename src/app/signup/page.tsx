@@ -2,10 +2,11 @@
 // src/app/signup/page.tsx
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
+import { signIn } from 'next-auth/react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { PulseRobot } from '@/components/Pulse/PulseRobot'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/components/UI/Toast'
@@ -19,6 +20,7 @@ const I = {
   Eye: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
   EyeOff: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
   Arrow: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>,
+  ArrowLeft: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>,
   Google: () => <svg width="16" height="16" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>,
   GitHub: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>,
   Shield: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>,
@@ -29,7 +31,34 @@ const I = {
   Voice: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>,
   Memory: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
   Bolt: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-  Globe: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>,
+}
+
+// ─── Back to Home Button ─────────────────────────────────────────────────────────
+function BackToHome() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 0.1, duration: 0.4 }}
+      className="fixed top-6 left-6 z-20"
+    >
+      <Link
+        href="/"
+        className="group inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-white/[0.06] bg-[#0c0c16] hover:bg-white/[0.05] hover:border-white/[0.12] transition-all duration-200"
+      >
+        <motion.span
+          className="text-white/40 group-hover:text-white/70 transition-colors"
+          animate={{ x: [0, -2, 0] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <I.ArrowLeft />
+        </motion.span>
+        <span className="text-[11px] font-mono font-semibold text-white/40 group-hover:text-white/70 tracking-wide transition-colors">
+          Back to home
+        </span>
+      </Link>
+    </motion.div>
+  )
 }
 
 // ─── Hex Grid Background ──────────────────────────────────────────────────────────
@@ -118,7 +147,6 @@ function PasswordStrength({ password }: { password: string }) {
       animate={{ opacity: 1, height: 'auto' }}
       className="space-y-2 pt-1"
     >
-      {/* Bar */}
       <div className="flex gap-1">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="flex-1 h-1 rounded-full bg-white/[0.06] overflow-hidden">
@@ -147,7 +175,7 @@ function PasswordStrength({ password }: { password: string }) {
   )
 }
 
-// ─── Animated Testimonials ────────────────────────────────────────────────────────
+// ─── Testimonials ────────────────────────────────────────────────────────────────
 function TestimonialCarousel() {
   const testimonials = [
     { name: 'Sarah Chen', role: 'Staff Eng · Vercel', text: 'Setting up took 2 minutes. The AI understood my workflow instantly.', avatar: 'SC' },
@@ -165,9 +193,9 @@ function TestimonialCarousel() {
     <div className="relative h-[130px]">
       <AnimatePresence mode="wait">
         <motion.div key={active}
-          initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
-          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-          exit={{ opacity: 0, y: -10, filter: 'blur(4px)' }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.4 }}
           className="absolute inset-0"
         >
@@ -221,7 +249,7 @@ function SignupBenefits() {
           transition={{ delay: 0.6 + i * 0.08 }}
           className="flex items-center gap-2.5"
         >
-          <div className="flex-shrink-0 w-4.5 h-4.5 rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+          <div className="flex-shrink-0 w-4 h-4 rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
             <I.Check />
           </div>
           <span className="text-[11px] font-mono text-white/35">{b}</span>
@@ -266,12 +294,10 @@ function Field({ id, label, type, value, onChange, icon, error, autoComplete, ri
     <div>
       <label htmlFor={id} className="block mb-1.5 text-[11px] font-medium text-white/35">{label}</label>
       <div className="relative">
-        {f && !error && <div className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-indigo-500/20 via-violet-500/10 to-indigo-500/20 pointer-events-none" />}
-        {error && <div className="absolute -inset-[1px] rounded-xl bg-red-500/15 pointer-events-none" />}
         <div className={cn(
           'relative flex items-center rounded-xl border transition-all duration-200',
           error ? 'border-red-500/25 bg-red-500/[0.03]'
-            : f ? 'border-indigo-500/30 bg-white/[0.03]'
+            : f ? 'border-indigo-500/40 bg-white/[0.03] shadow-[0_0_0_3px_rgba(99,102,241,0.08)]'
               : 'border-white/[0.07] bg-white/[0.015] hover:border-white/[0.12]'
         )}>
           <span className={cn('pl-3.5 flex-shrink-0 transition-colors', f ? 'text-indigo-400' : 'text-white/20')}>{icon}</span>
@@ -296,7 +322,7 @@ function Field({ id, label, type, value, onChange, icon, error, autoComplete, ri
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════
-// MAIN — Centered Card with Internal Split
+// MAIN — Blur-Free
 // ═══════════════════════════════════════════════════════════════════════════════════
 export default function SignupPage() {
   const router = useRouter()
@@ -311,15 +337,9 @@ export default function SignupPage() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [agreed, setAgreed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [oauthLoading, setOauthLoading] = useState<'google' | 'github' | null>(null)
   const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; confirm?: string; terms?: string }>({})
 
-  const cardRef = useRef<HTMLDivElement>(null)
-  const mx = useMotionValue(0)
-  const my = useMotionValue(0)
-  const rx = useTransform(my, [-300, 300], [2, -2])
-  const ry = useTransform(mx, [-300, 300], [-2, 2])
-
-  // Autofill fix
   useEffect(() => {
     const s = document.createElement('style')
     s.textContent = `
@@ -336,13 +356,6 @@ export default function SignupPage() {
     document.head.appendChild(s)
     return () => { document.head.removeChild(s) }
   }, [])
-
-  const handleMouse = (e: React.MouseEvent) => {
-    if (!cardRef.current) return
-    const r = cardRef.current.getBoundingClientRect()
-    mx.set(e.clientX - r.left - r.width / 2)
-    my.set(e.clientY - r.top - r.height / 2)
-  }
 
   const validate = () => {
     const e: typeof errors = {}
@@ -371,10 +384,29 @@ export default function SignupPage() {
     } finally { setLoading(false) }
   }
 
+  const handleOAuth = async (provider: 'google' | 'github') => {
+    setOauthLoading(provider)
+    try {
+      const result = await signIn(provider, {
+        callbackUrl: '/chat',
+        redirect: true,
+      })
+      if (result?.error) throw new Error(result.error)
+    } catch (err) {
+      addToast({
+        title: `${provider === 'google' ? 'Google' : 'GitHub'} sign-up failed`,
+        description: err instanceof Error ? err.message : 'Please try again',
+        type: 'error',
+      })
+      setOauthLoading(null)
+    }
+  }
+
   return (
     <div className="relative min-h-[100dvh] flex items-center justify-center bg-[#08080e] overflow-hidden px-4 py-8">
 
-      {/* Background */}
+      <BackToHome />
+
       <HexGrid />
       <OrbitSystem />
       <div className="absolute top-[15%] left-[10%] w-[500px] h-[500px] rounded-full pointer-events-none"
@@ -385,33 +417,19 @@ export default function SignupPage() {
         style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.04), transparent 50%)', filter: 'blur(100px)' }} />
       <NoiseOverlay />
 
-      {/* Card */}
+      {/* Card — no tilt, no backdrop-blur = crystal clear */}
       <motion.div
-        ref={cardRef}
-        onMouseMove={handleMouse}
-        onMouseLeave={() => { mx.set(0); my.set(0) }}
         initial={{ opacity: 0, y: 30, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
-        style={{ rotateX: rx, rotateY: ry, perspective: 1200 }}
         className="relative z-10 w-full max-w-[920px]"
       >
-        {/* Glow */}
-        <div className="absolute -inset-[1px] rounded-[24px] bg-gradient-to-br from-indigo-500/15 via-transparent to-violet-500/15 pointer-events-none" />
-        <div className="absolute -inset-2 rounded-[28px] bg-gradient-to-br from-indigo-500/5 via-transparent to-violet-500/5 blur-xl pointer-events-none" />
-
-        <div className="relative rounded-[24px] border border-white/[0.07] bg-[#0c0c16]/90 backdrop-blur-2xl shadow-2xl shadow-black/50 overflow-hidden">
-          {/* Top shine */}
+        <div className="relative rounded-[24px] border border-white/[0.07] bg-[#0c0c16] shadow-2xl shadow-black/50 overflow-hidden">
           <div className="absolute top-0 left-[15%] right-[15%] h-px bg-gradient-to-r from-transparent via-indigo-400/25 to-transparent" />
 
           <div className="flex flex-col lg:flex-row">
-
-            {/* ═══════════════════════════════════════════════════════ */}
-            {/* LEFT — Brand                                           */}
-            {/* ═══════════════════════════════════════════════════════ */}
+            {/* LEFT */}
             <div className="lg:w-[45%] p-8 lg:p-10 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-white/[0.05]">
-
-              {/* Logo */}
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
                 <Link href="/" className="inline-flex items-center gap-2.5 mb-8">
                   <div className="relative">
@@ -428,10 +446,8 @@ export default function SignupPage() {
                 </Link>
               </motion.div>
 
-              {/* Hero */}
               <div className="flex-1 flex flex-col justify-center">
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                  {/* Badge */}
                   <div className="inline-flex items-center gap-2 mb-5 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/12">
                     <motion.span animate={{ rotate: 360 }} transition={{ duration: 5, repeat: Infinity, ease: 'linear' }} className="text-indigo-400">
                       <I.Sparkle />
@@ -452,24 +468,20 @@ export default function SignupPage() {
                   </p>
                 </motion.div>
 
-                {/* Feature pills */}
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }} className="mb-6">
                   <FeatureRow />
                 </motion.div>
 
-                {/* Benefits checklist */}
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="mb-6">
                   <p className="text-[9px] font-mono text-white/15 uppercase tracking-[0.15em] mb-3">What you get</p>
                   <SignupBenefits />
                 </motion.div>
 
-                {/* Testimonial */}
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}>
                   <TestimonialCarousel />
                 </motion.div>
               </div>
 
-              {/* Bottom bar */}
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9 }}
                 className="flex items-center justify-between mt-8 pt-4 border-t border-white/[0.04]">
                 <div className="flex items-center gap-2 text-[9px] font-mono text-white/15">
@@ -483,11 +495,8 @@ export default function SignupPage() {
               </motion.div>
             </div>
 
-            {/* ═══════════════════════════════════════════════════════ */}
-            {/* RIGHT — Form                                           */}
-            {/* ═══════════════════════════════════════════════════════ */}
+            {/* RIGHT — Form */}
             <div className="lg:w-[55%] p-8 lg:p-10 flex flex-col justify-center">
-
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
                 className="mb-7">
                 <h2 className="text-[22px] font-black text-white tracking-tight mb-1.5">Create account</h2>
@@ -497,20 +506,57 @@ export default function SignupPage() {
               {/* OAuth */}
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
                 className="grid grid-cols-2 gap-2.5 mb-5">
-                {[
-                  { icon: <I.Google />, label: 'Google' },
-                  { icon: <I.GitHub />, label: 'GitHub' },
-                ].map((p) => (
-                  <motion.button key={p.label} type="button"
-                    whileHover={{ y: -1 }} whileTap={{ scale: 0.98 }}
-                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.07] bg-white/[0.015] text-[12px] font-mono text-white/45 hover:text-white/70 hover:border-white/[0.14] hover:bg-white/[0.03] transition-all"
-                  >
-                    {p.icon}<span>{p.label}</span>
-                  </motion.button>
-                ))}
+                <motion.button
+                  type="button"
+                  onClick={() => handleOAuth('google')}
+                  disabled={oauthLoading !== null || loading}
+                  whileHover={{ y: oauthLoading || loading ? 0 : -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.07] bg-white/[0.015] text-[12px] font-mono text-white/45 hover:text-white/70 hover:border-white/[0.14] hover:bg-white/[0.03] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {oauthLoading === 'google' ? (
+                    <>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 0.7, repeat: Infinity, ease: 'linear' }}
+                        className="w-3.5 h-3.5 border-2 border-white/25 border-t-white rounded-full"
+                      />
+                      <span>Connecting…</span>
+                    </>
+                  ) : (
+                    <>
+                      <I.Google />
+                      <span>Google</span>
+                    </>
+                  )}
+                </motion.button>
+
+                <motion.button
+                  type="button"
+                  onClick={() => handleOAuth('github')}
+                  disabled={oauthLoading !== null || loading}
+                  whileHover={{ y: oauthLoading || loading ? 0 : -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.07] bg-white/[0.015] text-[12px] font-mono text-white/45 hover:text-white/70 hover:border-white/[0.14] hover:bg-white/[0.03] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {oauthLoading === 'github' ? (
+                    <>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 0.7, repeat: Infinity, ease: 'linear' }}
+                        className="w-3.5 h-3.5 border-2 border-white/25 border-t-white rounded-full"
+                      />
+                      <span>Connecting…</span>
+                    </>
+                  ) : (
+                    <>
+                      <I.GitHub />
+                      <span>GitHub</span>
+                    </>
+                  )}
+                </motion.button>
               </motion.div>
 
-              {/* Divider */}
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}
                 className="flex items-center gap-3 mb-5">
                 <div className="flex-1 h-px bg-white/[0.05]" />
@@ -518,7 +564,6 @@ export default function SignupPage() {
                 <div className="flex-1 h-px bg-white/[0.05]" />
               </motion.div>
 
-              {/* Form */}
               <motion.form initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
                 onSubmit={submit} className="space-y-3.5">
 
@@ -553,7 +598,6 @@ export default function SignupPage() {
                     </button>
                   } />
 
-                {/* Terms checkbox */}
                 <div className="pt-1">
                   <label className="group flex items-start gap-2.5 cursor-pointer">
                     <div className="relative mt-0.5">
@@ -584,10 +628,9 @@ export default function SignupPage() {
                   </AnimatePresence>
                 </div>
 
-                {/* Submit */}
-                <motion.button type="submit" disabled={loading}
-                  whileHover={{ scale: loading ? 1 : 1.008 }}
-                  whileTap={{ scale: loading ? 1 : 0.995 }}
+                <motion.button type="submit" disabled={loading || oauthLoading !== null}
+                  whileHover={{ scale: loading || oauthLoading ? 1 : 1.008 }}
+                  whileTap={{ scale: loading || oauthLoading ? 1 : 0.995 }}
                   className={cn(
                     'group relative w-full overflow-hidden rounded-xl py-3 font-semibold text-[13px] transition-all duration-300 mt-1',
                     'bg-gradient-to-r from-indigo-500 via-indigo-600 to-violet-600 text-white',
@@ -614,7 +657,6 @@ export default function SignupPage() {
                 </motion.button>
               </motion.form>
 
-              {/* Footer */}
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }}
                 className="mt-6 space-y-4">
                 <p className="text-center text-[12px] text-white/18">
